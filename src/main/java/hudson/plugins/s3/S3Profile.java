@@ -75,7 +75,7 @@ public class S3Profile {
         
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentType(Mimetypes.getInstance().getMimetype(filePath.getName()));
-                
+        metadata.setContentLength(filePath.length());
         try {
             getClient().putObject(dest.bucketName, dest.objectName, filePath.read(), metadata);
         } catch (Exception e) {
