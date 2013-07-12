@@ -33,6 +33,11 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
 
     private final List<Entry> entries = new ArrayList<Entry>();
 
+    /**
+     * User metadata key/value pairs to tag the upload with.
+     */
+    private /*almost final*/ List<MetadataPair> userMetadata = new ArrayList<MetadataPair>();
+
 
     @DataBoundConstructor
     public S3BucketPublisher() {
@@ -50,8 +55,18 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         this.profileName = profileName;
     }
 
+    protected Object readResolve() {
+        if (userMetadata==null)
+            userMetadata = new ArrayList<MetadataPair>();
+        return this;
+    }
+
     public List<Entry> getEntries() {
         return entries;
+    }
+
+    public List<MetadataPair> getUserMetadata() {
+        return userMetadata;
     }
 
     public S3Profile getProfile() {
@@ -115,9 +130,16 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 }
                 String bucket = Util.replaceMacro(entry.bucket, envVars);
                 String storageClass = Util.replaceMacro(entry.storageClass, envVars);
+                List<MetadataPair> escapedUserMetadata = new ArrayList<MetadataPair>();
+                for (MetadataPair metadataPair : userMetadata) {
+                    MetadataPair escapedMetadataPair = new MetadataPair();
+                    escapedMetadataPair.key = Util.replaceMacro(metadataPair.key, envVars);
+                    escapedMetadataPair.value = Util.replaceMacro(metadataPair.value, envVars);
+                    escapedUserMetadata.add(escapedMetadataPair);
+                }
                 for (FilePath src : paths) {
                     log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName());
-                    profile.upload(bucket, src, storageClass);
+                    profile.upload(bucket, src, escapedUserMetadata, storageClass);
                 }
             }
         } catch (IOException e) {
@@ -160,6 +182,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             S3BucketPublisher pub = new S3BucketPublisher();
             req.bindParameters(pub, "s3.");
             pub.getEntries().addAll(req.bindParametersToList(Entry.class, "s3.entry."));
+            pub.getUserMetadata().addAll(req.bindParametersToList(MetadataPair.class, "s3.metadataPair."));
             return pub;
         }
 
