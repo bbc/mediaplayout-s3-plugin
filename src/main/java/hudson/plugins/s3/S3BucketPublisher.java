@@ -36,7 +36,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     /**
      * User metadata key/value pairs to tag the upload with.
      */
-    private final List<MetadataPair> userMetadata = new ArrayList<MetadataPair>();
+    private /*almost final*/ List<MetadataPair> userMetadata = new ArrayList<MetadataPair>();
 
 
     @DataBoundConstructor
@@ -53,6 +53,12 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 profileName = sites[0].getName();
         }
         this.profileName = profileName;
+    }
+
+    protected Object readResolve() {
+        if (userMetadata==null)
+            userMetadata = new ArrayList<MetadataPair>();
+        return this;
     }
 
     public List<Entry> getEntries() {
