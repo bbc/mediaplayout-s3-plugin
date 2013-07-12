@@ -11,11 +11,12 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.internal.Mimetypes;
+import hudson.util.Secret;
 
 public class S3Profile {
     private String name;
     private String accessKey;
-    private String secretKey;
+    private Secret secretKey;
     private transient volatile AmazonS3Client client = null;
 
     public S3Profile() {
@@ -25,7 +26,7 @@ public class S3Profile {
     public S3Profile(String name, String accessKey, String secretKey) {
         this.name = name;
         this.accessKey = accessKey;
-        this.secretKey = secretKey;
+        this.secretKey = Secret.fromString(secretKey);
         client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey));
     }
 
@@ -37,12 +38,8 @@ public class S3Profile {
         this.accessKey = accessKey;
     }
 
-    public final String getSecretKey() {
+    public final Secret getSecretKey() {
         return secretKey;
-    }
-
-    public void setSecretKey(String secretKey) {
-        this.secretKey = secretKey;
     }
 
     public final String getName() {
@@ -55,7 +52,7 @@ public class S3Profile {
 
     public AmazonS3Client getClient() {
         if (client == null) {
-            client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey));
+            client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey.getPlainText()));
         }
         return client;
     }
