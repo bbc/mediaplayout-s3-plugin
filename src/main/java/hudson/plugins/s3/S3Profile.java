@@ -3,7 +3,6 @@ package hudson.plugins.s3;
 import hudson.FilePath;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.kohsuke.stapler.DataBoundConstructor;
 
@@ -16,7 +15,7 @@ public class S3Profile {
     private String name;
     private String accessKey;
     private String secretKey;
-    private static final AtomicReference<AmazonS3Client> client = new AtomicReference<AmazonS3Client>(null);
+    private transient volatile AmazonS3Client client = null;
 
     public S3Profile() {
     }
@@ -26,7 +25,7 @@ public class S3Profile {
         this.name = name;
         this.accessKey = accessKey;
         this.secretKey = secretKey;
-        client.set(new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey)));
+        client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey));
     }
 
     public final String getAccessKey() {
@@ -54,10 +53,10 @@ public class S3Profile {
     }
 
     public AmazonS3Client getClient() {
-        if (client.get() == null) {
-            client.set(new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey)));
+        if (client == null) {
+            client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey));
         }
-        return client.get();
+        return client;
     }
 
     public void check() throws Exception {
