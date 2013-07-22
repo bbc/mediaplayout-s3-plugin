@@ -18,6 +18,7 @@ import org.kohsuke.stapler.StaplerResponse;
 
 import javax.servlet.ServletException;
 import java.io.IOException;
+import java.io.File;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -129,6 +130,9 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     if (error != null)
                         log(listener.getLogger(), error);
                 }
+
+                int searchPathLength = getSearchPathLenght(ws.getRemote(), expanded);
+
                 String bucket = Util.replaceMacro(entry.bucket, envVars);
                 String storageClass = Util.replaceMacro(entry.storageClass, envVars);
                 List<MetadataPair> escapedUserMetadata = new ArrayList<MetadataPair>();
@@ -140,7 +144,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 }
                 for (FilePath src : paths) {
                     log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName());
-                    profile.upload(bucket, src, escapedUserMetadata, storageClass);
+                    profile.upload(bucket, src, searchPathLength, escapedUserMetadata, storageClass);
                 }
             }
         } catch (IOException e) {
@@ -149,6 +153,26 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         }
         return true;
     }
+
+    private int getSearchPathLenght(String workSpace, String filterExpanded) {
+        File file1 = new File(workSpace);
+        File file2 = new File(file1, filterExpanded);
+
+        String pathWithFilter = file2.getPath();
+
+        int indexOfWildCard = pathWithFilter.indexOf("*");
+
+        if (indexOfWildCard > 0)
+        {
+            String s = pathWithFilter.substring(0, indexOfWildCard);
+            return s.length();
+        }
+        else
+        {
+            return pathWithFilter.length();
+        }
+    }
+
 
     public BuildStepMonitor getRequiredMonitorService() {
         return BuildStepMonitor.STEP;
