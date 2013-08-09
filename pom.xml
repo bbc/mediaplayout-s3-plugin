@@ -17,6 +17,7 @@
         <developer> <id>d6y</id> <name>Richard Dallaway</name> </developer>
         <developer> <id>longlho</id> <name>Long Ho</name> </developer>
         <developer> <id>mikewatt</id> <name>Michael Watt</name> </developer>
+        <developer> <id>dmbeer</id> <name>David Beer</name></developer>
     </developers>
 
     <scm>
