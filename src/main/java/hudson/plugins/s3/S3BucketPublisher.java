@@ -131,7 +131,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                         log(listener.getLogger(), error);
                 }
 
-                int searchPathLength = getSearchPathLenght(ws.getRemote(), expanded);
+                int searchPathLength = getSearchPathLength(ws.getRemote(), expanded);
 
                 String bucket = Util.replaceMacro(entry.bucket, envVars);
                 String storageClass = Util.replaceMacro(entry.storageClass, envVars);
@@ -155,7 +155,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         return true;
     }
 
-    private int getSearchPathLenght(String workSpace, String filterExpanded) {
+    private int getSearchPathLength(String workSpace, String filterExpanded) {
         File file1 = new File(workSpace);
         File file2 = new File(file1, filterExpanded);
 
