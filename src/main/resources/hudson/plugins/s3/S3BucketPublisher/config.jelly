@@ -34,6 +34,9 @@
                 </j:forEach>
             </select>
         </f:entry>
+        <f:entry field="uploadFromSlave" title="Publish from Slave" help="${helpURL}/help-publish-slave.html">
+		    <f:checkbox name="s3.entry.uploadFromSlave" checked="${e.uploadFromSlave}"/>
+        </f:entry>
         <f:entry title="">
           <div align="right">
             <f:repeatableDeleteButton />

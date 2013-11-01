@@ -28,4 +28,9 @@ public final class Entry {
      * Stores the Region Value
      */
     public String selectedRegion;
+    
+    /**
+     * Upload either from the slave or the master
+     */
+    public boolean uploadFromSlave;
 }

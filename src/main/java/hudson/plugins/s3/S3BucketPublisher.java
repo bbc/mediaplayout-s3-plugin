@@ -144,8 +144,8 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     escapedUserMetadata.add(escapedMetadataPair);
                 }
                 for (FilePath src : paths) {
-                    log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region = " + selRegion);
-                    profile.upload(bucket, src, searchPathLength, escapedUserMetadata, storageClass, selRegion);
+                    log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region = " + selRegion + ", upload from slave=" + entry.uploadFromSlave);
+                    profile.upload(bucket, src, searchPathLength, escapedUserMetadata, storageClass, selRegion, entry.uploadFromSlave);
                 }
             }
         } catch (IOException e) {

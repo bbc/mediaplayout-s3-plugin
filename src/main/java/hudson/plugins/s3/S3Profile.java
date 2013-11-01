@@ -1,8 +1,11 @@
 package hudson.plugins.s3;
 
 import hudson.FilePath;
+import hudson.FilePath.FileCallable;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.Date;
 import java.util.List;
 
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -14,6 +17,8 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.internal.Mimetypes;
+
+import hudson.remoting.VirtualChannel;
 import hudson.util.Secret;
 
 public class S3Profile {
@@ -64,9 +69,8 @@ public class S3Profile {
         getClient().listBuckets();
     }
 
-
-
-    public void upload(String bucketName, FilePath filePath, int searchPathLength, List<MetadataPair> userMetadata, String storageClass, String selregion) throws IOException, InterruptedException {
+    public void upload(String bucketName, FilePath filePath, int searchPathLength, List<MetadataPair> userMetadata,
+            String storageClass, String selregion, boolean uploadFromSlave) throws IOException, InterruptedException {
         if (filePath.isDirectory()) {
             throw new IOException(filePath + " is a directory");
         }
@@ -74,23 +78,72 @@ public class S3Profile {
         String relativeFileName = filePath.getRemote();
         relativeFileName = relativeFileName.substring(searchPathLength);
 
-        final Destination dest = new Destination(bucketName,relativeFileName);
+        final Destination dest = new Destination(bucketName, relativeFileName);
 
-        ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentType(Mimetypes.getInstance().getMimetype(filePath.getName()));
-        metadata.setContentLength(filePath.length());
-        if ((storageClass != null) && !"".equals(storageClass)) {
-            metadata.setHeader("x-amz-storage-class", storageClass);
-        }
-        for (MetadataPair metadataPair : userMetadata) {
-            metadata.addUserMetadata(metadataPair.key, metadataPair.value);
-        }
         try {
-            Region region = RegionUtils.getRegion(Regions.valueOf(selregion).getName());
-            getClient().setRegion(region);
-            getClient().putObject(dest.bucketName, dest.objectName, filePath.read(), metadata);
+            S3UploadCallable callable = new S3UploadCallable(getClient(), dest, userMetadata, storageClass, selregion);
+            if (uploadFromSlave) {
+                filePath.act(callable);
+            } else {
+                callable.invoke(filePath);
+            }
         } catch (Exception e) {
             throw new IOException("put " + dest + ": " + e);
         }
     }
+
+    public static class S3UploadCallable implements FileCallable<Void> {
+        private static final long serialVersionUID = 1L;
+        private final Destination dest;
+        private final AmazonS3Client client;
+        private final String storageClass;
+        private List<MetadataPair> userMetadata;
+        private String selregion;
+
+        public S3UploadCallable(AmazonS3Client client, Destination dest, List<MetadataPair> userMetadata, String storageClass,
+                String selregion) {
+            this.dest = dest;
+            this.client = client;
+            this.storageClass = storageClass;
+            this.userMetadata = userMetadata;
+            this.selregion = selregion;
+        }
+
+        public ObjectMetadata buildMetadata(FilePath filePath) throws IOException, InterruptedException {
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentType(Mimetypes.getInstance().getMimetype(filePath.getName()));
+            metadata.setContentLength(filePath.length());
+            metadata.setLastModified(new Date(filePath.lastModified()));
+            if ((storageClass != null) && !"".equals(storageClass)) {
+                metadata.setHeader("x-amz-storage-class", storageClass);
+            }
+            for (MetadataPair metadataPair : userMetadata) {
+                metadata.addUserMetadata(metadataPair.key, metadataPair.value);
+            }
+            return metadata;
+        }
+
+        /**
+         * Upload from slave directly
+         */
+        public Void invoke(File file, VirtualChannel channel) throws IOException, InterruptedException {
+            invoke(new FilePath(file));
+            return null;
+        }
+
+        /**
+         * Stream from slave to master, then upload from master
+         */
+        public Void invoke(FilePath file) throws IOException, InterruptedException {
+            setRegion();
+            client.putObject(dest.bucketName, dest.objectName, file.read(), buildMetadata(file));
+            return null;
+        }
+
+        private void setRegion() {
+            Region region = RegionUtils.getRegion(Regions.valueOf(selregion).getName());
+            client.setRegion(region);
+        }
+    }
+
 }
