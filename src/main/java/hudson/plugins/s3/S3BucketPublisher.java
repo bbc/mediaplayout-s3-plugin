@@ -120,12 +120,8 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                            BuildListener listener)
             throws InterruptedException, IOException {
 
-        //TODO: implement a checkbox or dropdown to save a preference for uploading after a failure
-        //if (build.getResult() == Result.FAILURE) {
-            // build failed. don't post
-            //return true;
-        //}
-
+        final boolean buildFailed = build.getResult() == Result.FAILURE;
+        
         S3Profile profile = getProfile();
         if (profile == null) {
             log(listener.getLogger(), "No S3 profile is configured.");
@@ -139,6 +135,13 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             List<FingerprintRecord> artifacts = Lists.newArrayList();
             
             for (Entry entry : entries) {
+                
+                if (entry.noUploadOnFailure && buildFailed) {
+                    // build failed. don't post
+                    log(listener.getLogger(), "Skipping publishing on S3 because build failed");
+                    continue;
+                }
+                
                 String expanded = Util.replaceMacro(entry.sourceFile, envVars);
                 FilePath ws = build.getWorkspace();
                 FilePath[] paths = ws.list(expanded);

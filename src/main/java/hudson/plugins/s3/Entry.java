@@ -30,6 +30,11 @@ public final class Entry {
     public String selectedRegion;
     
     /**
+     * Do not publish the artifacts when build fails
+     */
+    public boolean noUploadOnFailure;
+
+    /**
      * Upload either from the slave or the master
      */
     public boolean uploadFromSlave;
