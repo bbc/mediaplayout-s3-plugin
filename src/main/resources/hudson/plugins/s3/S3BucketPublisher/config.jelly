@@ -34,8 +34,14 @@
                 </j:forEach>
             </select>
         </f:entry>
+        <f:entry field="noUploadOnFailure" title="Publish on failure" help="${helpURL}/help-no-upload-on-failure.html">
+		    <f:checkbox name="s3.entry.noUploadOnFailure" checked="${e.noUploadOnFailure}"/>
+        </f:entry>
         <f:entry field="uploadFromSlave" title="Publish from Slave" help="${helpURL}/help-publish-slave.html">
 		    <f:checkbox name="s3.entry.uploadFromSlave" checked="${e.uploadFromSlave}"/>
+        </f:entry>
+        <f:entry field="managedArtifacts" title="Manage artifacts" help="${helpURL}/help-manage-artifacts.html">
+		    <f:checkbox name="s3.entry.managedArtifacts" checked="${e.managedArtifacts}"/>
         </f:entry>
         <f:entry title="">
           <div align="right">

@@ -33,4 +33,9 @@ public final class Entry {
      * Upload either from the slave or the master
      */
     public boolean uploadFromSlave;
+
+    /**
+     * Let Jenkins manage the S3 uploaded artifacts
+     */
+    public boolean managedArtifacts;
 }
