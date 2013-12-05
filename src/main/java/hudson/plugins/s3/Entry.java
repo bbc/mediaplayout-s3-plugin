@@ -28,4 +28,19 @@ public final class Entry {
      * Stores the Region Value
      */
     public String selectedRegion;
+    
+    /**
+     * Do not publish the artifacts when build fails
+     */
+    public boolean noUploadOnFailure;
+
+    /**
+     * Upload either from the slave or the master
+     */
+    public boolean uploadFromSlave;
+
+    /**
+     * Let Jenkins manage the S3 uploaded artifacts
+     */
+    public boolean managedArtifacts;
 }
