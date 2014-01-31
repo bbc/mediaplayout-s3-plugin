@@ -214,7 +214,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         }
         else
         {
-            return pathWithFilter.length();
+            return file2.getParent().length() + 1;
         }
     }
 
