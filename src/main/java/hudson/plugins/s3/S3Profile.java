@@ -47,11 +47,16 @@ public class S3Profile {
     @DataBoundConstructor
     public S3Profile(String name, String accessKey, String secretKey, String proxyHost, String proxyPort, boolean useRole) {
         this.name = name;
-        this.accessKey = accessKey;
-        this.secretKey = Secret.fromString(secretKey);
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
         this.useRole = useRole;
+        if (useRole) {
+            this.accessKey = "";
+            this.secretKey = null;
+        } else {
+            this.accessKey = accessKey;
+            this.secretKey = Secret.fromString(secretKey);
+        }
     }
 
     public final String getAccessKey() {
@@ -125,7 +130,7 @@ public class S3Profile {
         }
 
         try {
-            S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, dest, userMetadata, storageClass, selregion);
+            S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion);
             if (uploadFromSlave) {
                 return filePath.act(callable);
             } else {
@@ -176,7 +181,7 @@ public class S3Profile {
                   Destination dest = Destination.newFromRun(build, artifact);
                   FilePath target = new FilePath(targetDir, artifact.getName());
                   try {
-                      fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, dest, console)));
+                      fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest, console)));
                   } catch (IOException e) {
                       e.printStackTrace();
                   } catch (InterruptedException e) {
