@@ -88,6 +88,7 @@ public class S3Profile {
                 client = new AmazonS3Client(getClientConfiguration());
             } else {
                 client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey.getPlainText()), getClientConfiguration());
+            }
         }
         return client;
     }
