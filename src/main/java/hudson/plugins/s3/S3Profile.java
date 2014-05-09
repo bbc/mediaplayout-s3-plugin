@@ -53,11 +53,6 @@ public class S3Profile {
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
         this.useRole = useRole;
-        if (useRole) {
-            client.set(new AmazonS3Client());
-        } else {
-            client.set(new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey)));
-        }
     }
 
     public final String getAccessKey() {
@@ -91,7 +86,7 @@ public class S3Profile {
     public AmazonS3Client getClient() {
         if (client == null) {
             if (useRole) {
-                client = new AmazonS3Client();
+                client = new AmazonS3Client(getClientConfiguration());
             } else {
                 client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey.getPlainText()), getClientConfiguration());
         }
