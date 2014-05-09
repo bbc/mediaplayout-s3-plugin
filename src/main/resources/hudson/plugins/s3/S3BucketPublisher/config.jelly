@@ -2,7 +2,7 @@
 
   <j:set var="helpURL" value="/plugin/s3" />
     <f:entry title="S3 profile">
-      <select class="setting-input" name="s3.name" description="Select configured S3 profile.Check global hudson config for defining access properties for this profile">
+      <select class="setting-input" name="s3.name" description="Select configured S3 profile. Check global Jenkins config for defining access properties for this profile.">
         <j:forEach var="s" items="${descriptor.profiles}">
           <f:option selected="${s.name==instance.name}">${s.name}</f:option>
         </j:forEach>
@@ -10,7 +10,6 @@
     </f:entry>
 
   <f:entry title="Files to upload">
-		
     <f:repeatable var="e" items="${instance.entries}">
       <table width="100%">
         <f:entry title="Source" help="${helpURL}/help-source.html">
@@ -21,7 +20,48 @@
           <input class="setting-input" name="s3.entry.bucket"
             type="text" value="${e.bucket}" />
         </f:entry>
+        <f:entry title="Storage class" help="${helpURL}/help-storageclass.html">
+          <select class="setting-input" name="s3.entry.storageClass">
+            <j:forEach var="storageOpt" items="${e.storageClasses}">
+              <f:option selected="${storageOpt==e.storageClass}">${storageOpt}</f:option>
+            </j:forEach>
+          </select>
+        </f:entry>
+        <f:entry title="Bucket Region" help="${helpURL}/help-region.html">
+            <select class="setting-input" name="s3.entry.selectedRegion">
+                <j:forEach var="regionOpt" items="${e.regions}">
+                    <f:option selected="${regionOpt==e.selectedRegion}">${regionOpt}</f:option>
+                </j:forEach>
+            </select>
+        </f:entry>
+        <f:entry field="noUploadOnFailure" title="No upload on build failure" help="${helpURL}/help-no-upload-on-failure.html">
+		    <f:checkbox name="s3.entry.noUploadOnFailure" checked="${e.noUploadOnFailure}"/>
+        </f:entry>
+        <f:entry field="uploadFromSlave" title="Publish from Slave" help="${helpURL}/help-publish-slave.html">
+		    <f:checkbox name="s3.entry.uploadFromSlave" checked="${e.uploadFromSlave}"/>
+        </f:entry>
+        <f:entry field="managedArtifacts" title="Manage artifacts" help="${helpURL}/help-manage-artifacts.html">
+		    <f:checkbox name="s3.entry.managedArtifacts" checked="${e.managedArtifacts}"/>
+        </f:entry>
         <f:entry title="">
+          <div align="right">
+            <f:repeatableDeleteButton />
+          </div>
+        </f:entry>
+      </table>
+    </f:repeatable>
+  </f:entry>
+
+  <f:entry title="Metadata tags">
+    <f:repeatable var="m" items="${instance.userMetadata}">
+      <table width="100%">
+        <f:entry title="Metadata key" help="${helpURL}/help-key.html">
+          <f:textbox name="s3.metadataPair.key" value="${m.key}" />
+        </f:entry>
+        <f:entry title="Metadata value" help="${helpURL}/help-value.html">
+          <f:textbox name="s3.metadataPair.value" value="${m.value}" />
+        </f:entry>
+          <f:entry title="">
           <div align="right">
             <f:repeatableDeleteButton />
           </div>

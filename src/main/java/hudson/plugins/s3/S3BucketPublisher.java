@@ -5,10 +5,12 @@ import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.model.*;
+import hudson.model.listeners.RunListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
 import hudson.tasks.Publisher;
 import hudson.tasks.Recorder;
+import hudson.tasks.Fingerprinter.FingerprintAction;
 import hudson.util.CopyOnWriteList;
 import hudson.util.FormValidation;
 import org.apache.commons.lang.StringUtils;
@@ -16,22 +18,35 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+
 import javax.servlet.ServletException;
 import java.io.IOException;
+import java.io.File;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public final class S3BucketPublisher extends Recorder implements Describable<Publisher> {
-
+    
+    private static final Logger log = Logger.getLogger(S3BucketPublisher.class.getName());
+    
     private String profileName;
     @Extension
     public static final DescriptorImpl DESCRIPTOR = new DescriptorImpl();
 
     private final List<Entry> entries = new ArrayList<Entry>();
+
+    /**
+     * User metadata key/value pairs to tag the upload with.
+     */
+    private /*almost final*/ List<MetadataPair> userMetadata = new ArrayList<MetadataPair>();
 
 
     @DataBoundConstructor
@@ -50,11 +65,25 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         this.profileName = profileName;
     }
 
+    protected Object readResolve() {
+        if (userMetadata==null)
+            userMetadata = new ArrayList<MetadataPair>();
+        return this;
+    }
+
     public List<Entry> getEntries() {
         return entries;
     }
 
+    public List<MetadataPair> getUserMetadata() {
+        return userMetadata;
+    }
+
     public S3Profile getProfile() {
+        return getProfile(profileName);
+    }
+
+    public static S3Profile getProfile(String profileName) {        
         S3Profile[] profiles = DESCRIPTOR.getProfiles();
 
         if (profileName == null && profiles.length > 0)
@@ -76,6 +105,11 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         this.profileName = profileName;
     }
 
+    @Override
+    public Collection<? extends Action> getProjectActions(AbstractProject<?, ?> project) {
+        return ImmutableList.of(new S3ArtifactsProjectAction(project));
+    }
+       
     protected void log(final PrintStream logger, final String message) {
         logger.println(StringUtils.defaultString(getDescriptor().getDisplayName()) + " " + message);
     }
@@ -86,11 +120,8 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                            BuildListener listener)
             throws InterruptedException, IOException {
 
-        if (build.getResult() == Result.FAILURE) {
-            // build failed. don't post
-            return true;
-        }
-
+        final boolean buildFailed = build.getResult() == Result.FAILURE;
+        
         S3Profile profile = getProfile();
         if (profile == null) {
             log(listener.getLogger(), "No S3 profile is configured.");
@@ -100,8 +131,17 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         log(listener.getLogger(), "Using S3 profile: " + profile.getName());
         try {
             Map<String, String> envVars = build.getEnvironment(listener);
-
+            Map<String,String> record = Maps.newHashMap();
+            List<FingerprintRecord> artifacts = Lists.newArrayList();
+            
             for (Entry entry : entries) {
+                
+                if (entry.noUploadOnFailure && buildFailed) {
+                    // build failed. don't post
+                    log(listener.getLogger(), "Skipping publishing on S3 because build failed");
+                    continue;
+                }
+                
                 String expanded = Util.replaceMacro(entry.sourceFile, envVars);
                 FilePath ws = build.getWorkspace();
                 FilePath[] paths = ws.list(expanded);
@@ -113,13 +153,44 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     if (error != null)
                         log(listener.getLogger(), error);
                 }
+
+                int searchPathLength = getSearchPathLength(ws.getRemote(), expanded);
+
                 String bucket = Util.replaceMacro(entry.bucket, envVars);
-                for (FilePath src : paths) {
-                    String [] parts = src.getParent().getRemote().split(ws.getRemote());
-                    String bucketWithKey = bucket + parts[1];
-                    log(listener.getLogger(), "bucket=" + bucketWithKey + ", file=" + src.getName());
-                    profile.upload(bucketWithKey, src);
+                String storageClass = Util.replaceMacro(entry.storageClass, envVars);
+                String selRegion = entry.selectedRegion;
+                List<MetadataPair> escapedUserMetadata = new ArrayList<MetadataPair>();
+                for (MetadataPair metadataPair : userMetadata) {
+                    MetadataPair escapedMetadataPair = new MetadataPair();
+                    escapedMetadataPair.key = Util.replaceMacro(metadataPair.key, envVars);
+                    escapedMetadataPair.value = Util.replaceMacro(metadataPair.value, envVars);
+                    escapedUserMetadata.add(escapedMetadataPair);
                 }
+                
+                List<FingerprintRecord> records = Lists.newArrayList();
+                
+                for (FilePath src : paths) {
+                    log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region=" + selRegion + ", upload from slave=" + entry.uploadFromSlave + " managed="+ entry.managedArtifacts);
+                    records.add(profile.upload(build, listener, bucket, src, searchPathLength, escapedUserMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts));
+                }
+                if (entry.managedArtifacts) {
+                    artifacts.addAll(records);
+    
+                    for (FingerprintRecord r : records) {
+                      Fingerprint fp = r.addRecord(build);
+                      if(fp==null) {
+                          listener.error("Fingerprinting failed for "+r.getName());
+                          continue;
+                      }
+                      fp.add(build);
+                      record.put(r.getName(),fp.getHashString());
+                   }
+                }
+            }
+            // don't bother adding actions if none of the artifacts are managed
+            if (artifacts.size() > 0) {
+                build.getActions().add(new S3ArtifactsAction(build, profile, artifacts ));
+                build.getActions().add(new FingerprintAction(build,record));
             }
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
@@ -128,6 +199,40 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         return true;
     }
 
+    private int getSearchPathLength(String workSpace, String filterExpanded) {
+        File file1 = new File(workSpace);
+        File file2 = new File(file1, filterExpanded);
+
+        String pathWithFilter = file2.getPath();
+
+        int indexOfWildCard = pathWithFilter.indexOf("*");
+
+        if (indexOfWildCard > 0)
+        {
+            String s = pathWithFilter.substring(0, indexOfWildCard);
+            return s.length();
+        }
+        else
+        {
+            return file2.getParent().length() + 1;
+        }
+    }
+
+    // Listen for project renames and update property here if needed.
+    @Extension
+    public static final class S3DeletedJobListener extends RunListener<Run> {
+        @Override
+        public void onDeleted(Run run) {
+            S3ArtifactsAction artifacts = run.getAction(S3ArtifactsAction.class);
+            if (artifacts != null) {
+                S3Profile profile = S3BucketPublisher.getProfile(artifacts.getProfile());
+                for (FingerprintRecord record : artifacts.getArtifacts()) {
+                    profile.delete(run, record);
+                }
+            }
+        }
+    }
+   
     public BuildStepMonitor getRequiredMonitorService() {
         return BuildStepMonitor.STEP;
     }
@@ -161,6 +266,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             S3BucketPublisher pub = new S3BucketPublisher();
             req.bindParameters(pub, "s3.");
             pub.getEntries().addAll(req.bindParametersToList(Entry.class, "s3.entry."));
+            pub.getUserMetadata().addAll(req.bindParametersToList(MetadataPair.class, "s3.metadataPair."));
             return pub;
         }
 
@@ -182,7 +288,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             if (name == null) {// name is not entered yet
                 return FormValidation.ok();
             }
-            S3Profile profile = new S3Profile(name, req.getParameter("accessKey"), req.getParameter("secretKey"), false);
+            S3Profile profile = new S3Profile(name, req.getParameter("accessKey"), req.getParameter("secretKey"), req.getParameter("proxyHost"), req.getParameter("proxyPort"), false);
 
             try {
                 profile.check();
