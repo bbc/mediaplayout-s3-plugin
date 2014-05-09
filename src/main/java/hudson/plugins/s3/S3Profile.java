@@ -40,7 +40,6 @@ public class S3Profile {
     private transient volatile AmazonS3Client client = null;
     private ClientConfiguration clientConfiguration = null;
     private boolean useRole;
-    private static final AtomicReference<AmazonS3Client> client = new AtomicReference<AmazonS3Client>(null);
 
     public S3Profile() {
     }
