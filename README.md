@@ -2,7 +2,7 @@
 Install
 =======
 
-Tested with Jenkins 1.480
+Tested with Jenkins 1.563
 
 * Upload `target/s3.hpi` to your instance of Jenkins via
 ./pluginManager/advanced
