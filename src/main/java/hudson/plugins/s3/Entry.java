@@ -43,4 +43,9 @@ public final class Entry {
      * Let Jenkins manage the S3 uploaded artifacts
      */
     public boolean managedArtifacts;
+    
+    /**
+     * Use S3 server side encryption when uploading the artifacts
+     */
+    public boolean useServerSideEncryption;
 }
