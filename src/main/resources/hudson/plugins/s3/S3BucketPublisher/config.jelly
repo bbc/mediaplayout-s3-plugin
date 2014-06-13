@@ -37,7 +37,7 @@
         <f:entry field="noUploadOnFailure" title="No upload on build failure" help="${helpURL}/help-no-upload-on-failure.html">
 		    <f:checkbox name="s3.entry.noUploadOnFailure" checked="${e.noUploadOnFailure}"/>
         </f:entry>
-        <f:entry field="uploadFromSlave" title="Publish from Slave" help="${helpURL}/help-publish-slave.html">
+        <f:entry field="uploadFromSlave" title="Publish from Slave" help="${helpURL}/help-upload-from-slave.html">
 		    <f:checkbox name="s3.entry.uploadFromSlave" checked="${e.uploadFromSlave}"/>
         </f:entry>
         <f:entry field="managedArtifacts" title="Manage artifacts" help="${helpURL}/help-manage-artifacts.html">
