@@ -43,6 +43,9 @@
         <f:entry field="managedArtifacts" title="Manage artifacts" help="${helpURL}/help-manage-artifacts.html">
 		    <f:checkbox name="s3.entry.managedArtifacts" checked="${e.managedArtifacts}"/>
         </f:entry>
+        <f:entry field="useServerSideEncryption" title="Server side encryption" help="${helpURL}/help-server-encryption.html">
+		    <f:checkbox name="s3.entry.useServerSideEncryption" checked="${e.useServerSideEncryption}"/>
+        </f:entry>
         <f:entry title="">
           <div align="right">
             <f:repeatableDeleteButton />
