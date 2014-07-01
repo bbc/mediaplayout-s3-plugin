@@ -48,4 +48,9 @@ public final class Entry {
      * Use S3 server side encryption when uploading the artifacts
      */
     public boolean useServerSideEncryption;
+
+    /**
+     * Flatten directories
+     */
+    public boolean flatten;
 }
