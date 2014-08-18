@@ -22,14 +22,14 @@
         </f:entry>
         <f:entry title="Storage class" help="${helpURL}/help-storageclass.html">
           <select class="setting-input" name="s3.entry.storageClass">
-            <j:forEach var="storageOpt" items="${e.storageClasses}">
+            <j:forEach var="storageOpt" items="${descriptor.storageClasses}">
               <f:option selected="${storageOpt==e.storageClass}">${storageOpt}</f:option>
             </j:forEach>
           </select>
         </f:entry>
         <f:entry title="Bucket Region" help="${helpURL}/help-region.html">
             <select class="setting-input" name="s3.entry.selectedRegion">
-                <j:forEach var="regionOpt" items="${e.regions}">
+                <j:forEach var="regionOpt" items="${descriptor.regions}">
                     <f:option selected="${regionOpt==e.selectedRegion}">${regionOpt}</f:option>
                 </j:forEach>
             </select>
