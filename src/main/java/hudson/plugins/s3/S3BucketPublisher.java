@@ -42,7 +42,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     @Extension
     public static final DescriptorImpl DESCRIPTOR = new DescriptorImpl();
 
-    private List<Entry> entries = new ArrayList<Entry>();
+    private final List<Entry> entries = new ArrayList<Entry>();
 
     /**
      * User metadata key/value pairs to tag the upload with.
@@ -50,12 +50,12 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     private /*almost final*/ List<MetadataPair> userMetadata = new ArrayList<MetadataPair>();
 
 
+    @DataBoundConstructor
     public S3BucketPublisher() {
         super();
     }
 
-    @DataBoundConstructor
-    public S3BucketPublisher(String profileName, List<Entry> entries, List<MetadataPair> userMetadata) {
+    public S3BucketPublisher(String profileName) {
         super();
         if (profileName == null) {
             // defaults to the first one
@@ -64,12 +64,6 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 profileName = sites[0].getName();
         }
         this.profileName = profileName;
-        if (entries != null) {
-            this.entries = entries;
-        }
-        if (userMetadata != null) {
-            this.userMetadata = userMetadata;
-        }
     }
 
     protected Object readResolve() {
@@ -168,8 +162,9 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 String selRegion = entry.selectedRegion;
                 List<MetadataPair> escapedUserMetadata = new ArrayList<MetadataPair>();
                 for (MetadataPair metadataPair : userMetadata) {
-                    MetadataPair escapedMetadataPair =
-                            new MetadataPair(Util.replaceMacro(metadataPair.key, envVars), Util.replaceMacro(metadataPair.value, envVars));
+                    MetadataPair escapedMetadataPair = new MetadataPair();
+                    escapedMetadataPair.key = Util.replaceMacro(metadataPair.key, envVars);
+                    escapedMetadataPair.value = Util.replaceMacro(metadataPair.value, envVars);
                     escapedUserMetadata.add(escapedMetadataPair);
                 }
                 
@@ -271,6 +266,14 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             return "/plugin/s3/help.html";
         }
 
+        @Override
+        public S3BucketPublisher newInstance(StaplerRequest req, net.sf.json.JSONObject formData) throws FormException {
+            S3BucketPublisher pub = new S3BucketPublisher();
+            req.bindParameters(pub, "s3.");
+            pub.getEntries().addAll(req.bindParametersToList(Entry.class, "s3.entry."));
+            pub.getUserMetadata().addAll(req.bindParametersToList(MetadataPair.class, "s3.metadataPair."));
+            return pub;
+        }
 
         @Override
         public boolean configure(StaplerRequest req, net.sf.json.JSONObject json) throws FormException {

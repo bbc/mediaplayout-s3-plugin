@@ -1,21 +1,15 @@
 package hudson.plugins.s3;
 
 import com.amazonaws.regions.Regions;
-import hudson.Extension;
-import hudson.model.AbstractDescribableImpl;
-import hudson.model.Descriptor;
-import hudson.util.ListBoxModel;
-import org.kohsuke.stapler.DataBoundConstructor;
 
-public final class Entry extends AbstractDescribableImpl<Entry> {
-
+public final class Entry {
     /**
      * Destination bucket for the copy. Can contain macros.
      */
     public String bucket;
     /**
-     * File name relative to the workspace root to upload. Can contain macros
-     * and wildcards.
+     * File name relative to the workspace root to upload.
+     * Can contain macros and wildcards.
      */
     public String sourceFile;
     /**
@@ -34,7 +28,7 @@ public final class Entry extends AbstractDescribableImpl<Entry> {
      * Stores the Region Value
      */
     public String selectedRegion;
-
+    
     /**
      * Do not publish the artifacts when build fails
      */
@@ -49,7 +43,7 @@ public final class Entry extends AbstractDescribableImpl<Entry> {
      * Let Jenkins manage the S3 uploaded artifacts
      */
     public boolean managedArtifacts;
-
+    
     /**
      * Use S3 server side encryption when uploading the artifacts
      */
@@ -59,41 +53,4 @@ public final class Entry extends AbstractDescribableImpl<Entry> {
      * Flatten directories
      */
     public boolean flatten;
-
-    @DataBoundConstructor
-    public Entry(String bucket, String sourceFile, String storageClass, String selectedRegion, boolean noUploadOnFailure,
-            boolean uploadFromSlave, boolean managedArtifacts) {
-        this.bucket = bucket;
-        this.sourceFile = sourceFile;
-        this.storageClass = storageClass;
-        this.selectedRegion = selectedRegion;
-        this.noUploadOnFailure = noUploadOnFailure;
-        this.uploadFromSlave = uploadFromSlave;
-        this.managedArtifacts = managedArtifacts;
-    }
-
-    @Extension
-    public static class DescriptorImpl extends Descriptor<Entry> {
-
-        public String getDisplayName() {
-            return "S3 Upload File Entry";
-        }
-
-        public ListBoxModel doFillStorageClassItems() {
-            ListBoxModel items = new ListBoxModel();
-            for (String storageClass : Entry.storageClasses) {
-                items.add(storageClass);
-            }
-            return items;
-        }
-
-        public ListBoxModel doFillSelectedRegionItems() {
-            ListBoxModel items = new ListBoxModel();
-            for (Regions region : Entry.regions) {
-                items.add(region.toString());
-            }
-            return items;
-        }
-
-    }
 }
