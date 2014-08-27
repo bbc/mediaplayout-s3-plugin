@@ -37,6 +37,7 @@ public class S3Profile {
     private Secret secretKey;
     private String proxyHost;
     private String proxyPort;
+    private int maxUploadRetries;
     private transient volatile AmazonS3Client client = null;
     private ClientConfiguration clientConfiguration = null;
     private boolean useRole;
@@ -50,6 +51,7 @@ public class S3Profile {
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
         this.useRole = useRole;
+        this.maxUploadRetries = 5;
         if (useRole) {
             this.accessKey = "";
             this.secretKey = null;
@@ -133,16 +135,22 @@ public class S3Profile {
             dest = Destination.newFromBuild(build, bucketName, filePath.getName());
             produced = build.getTimeInMillis() <= filePath.lastModified()+2000;
         }
-
-        try {
-            S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion,useServerSideEncryption);
-            if (uploadFromSlave) {
-                return filePath.act(callable);
-            } else {
-                return callable.invoke(filePath);
-            }
-        } catch (Exception e) {
-            throw new IOException("put " + dest + ": " + e);
+        int count = 0;
+        while(true) {
+	        try {
+	            S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion,useServerSideEncryption);
+	            if (uploadFromSlave) {
+	                return filePath.act(callable);
+	            } else {
+	                return callable.invoke(filePath);
+	            }
+	        } catch (Exception e) {
+				count++;
+				if(count >= maxUploadRetries){
+					throw new IOException("put " + dest + ": " + e + ":: Failed after " + count + "tries.");
+				}
+				Thread.sleep(5 * 1000); // 5 seconds
+	        }
         }
     }
 
