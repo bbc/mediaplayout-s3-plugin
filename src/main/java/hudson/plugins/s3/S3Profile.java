@@ -38,6 +38,7 @@ public class S3Profile {
     private String proxyHost;
     private String proxyPort;
     private int maxUploadRetries;
+    private int retryWaitTime;
     private transient volatile AmazonS3Client client = null;
     private ClientConfiguration clientConfiguration = null;
     private boolean useRole;
@@ -46,12 +47,21 @@ public class S3Profile {
     }
 
     @DataBoundConstructor
-    public S3Profile(String name, String accessKey, String secretKey, String proxyHost, String proxyPort, boolean useRole) {
+    public S3Profile(String name, String accessKey, String secretKey, String proxyHost, String proxyPort, boolean useRole, String maxUploadRetries, String retryWaitTime) {
         this.name = name;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
         this.useRole = useRole;
-        this.maxUploadRetries = 5;
+        try {
+            this.maxUploadRetries = Integer.parseInt(maxUploadRetries);
+        } catch(NumberFormatException nfe) {
+            this.maxUploadRetries = 5;
+        }
+        try {
+            this.retryWaitTime = Integer.parseInt(retryWaitTime);
+        } catch(NumberFormatException nfe) {
+            this.retryWaitTime = 5;
+        }
         if (useRole) {
             this.accessKey = "";
             this.secretKey = null;
@@ -71,6 +81,14 @@ public class S3Profile {
 
     public final Secret getSecretKey() {
         return secretKey;
+    }
+
+    public final int getMaxUploadRetries() {
+        return maxUploadRetries;
+    }
+
+    public final int getRetryWaitTime() {
+        return retryWaitTime;
     }
 
     public final String getName() {
@@ -135,7 +153,7 @@ public class S3Profile {
             dest = Destination.newFromBuild(build, bucketName, filePath.getName());
             produced = build.getTimeInMillis() <= filePath.lastModified()+2000;
         }
-        int count = 0;
+        int retryCount = 0;
         while(true) {
 	        try {
 	            S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion,useServerSideEncryption);
@@ -145,11 +163,11 @@ public class S3Profile {
 	                return callable.invoke(filePath);
 	            }
 	        } catch (Exception e) {
-				count++;
-				if(count >= maxUploadRetries){
-					throw new IOException("put " + dest + ": " + e + ":: Failed after " + count + "tries.");
-				}
-				Thread.sleep(5 * 1000); // 5 seconds
+                retryCount++;
+                if(retryCount >= maxUploadRetries){
+                    throw new IOException("put " + dest + ": " + e + ":: Failed after " + retryCount + " tries.");
+                }
+                Thread.sleep(retryWaitTime * 1000);
 	        }
         }
     }
