@@ -1,8 +1,14 @@
 package hudson.plugins.s3;
 
 import com.amazonaws.regions.Regions;
+import hudson.Extension;
+import hudson.model.AbstractDescribableImpl;
+import hudson.model.Descriptor;
+import hudson.util.ListBoxModel;
+import org.kohsuke.stapler.DataBoundConstructor;
 
-public final class Entry {
+public final class Entry extends AbstractDescribableImpl<Entry> {
+
     /**
      * Destination bucket for the copy. Can contain macros.
      */
@@ -53,4 +59,46 @@ public final class Entry {
      * Flatten directories
      */
     public boolean flatten;
+
+    @DataBoundConstructor
+    public Entry(String bucket, String sourceFile, String storageClass, String selectedRegion,
+                 boolean noUploadOnFailure, boolean uploadFromSlave, boolean managedArtifacts,
+                 boolean useServerSideEncryption, boolean flatten) {
+        this.bucket = bucket;
+        this.sourceFile = sourceFile;
+        this.storageClass = storageClass;
+        this.selectedRegion = selectedRegion;
+        this.noUploadOnFailure = noUploadOnFailure;
+        this.uploadFromSlave = uploadFromSlave;
+        this.managedArtifacts = managedArtifacts;
+        this.useServerSideEncryption = useServerSideEncryption;
+        this.flatten = flatten;
+    }
+
+    @Extension
+    public static class DescriptorImpl extends Descriptor<Entry> {
+
+        @Override
+        public String getDisplayName() {
+            return "File to upload";
+        }
+
+        public ListBoxModel doFillStorageClassItems() {
+            ListBoxModel model = new ListBoxModel();
+            for (String s : storageClasses) {
+                model.add(s, s);
+            }
+            return model;
+        }
+
+        public ListBoxModel doFillSelectedRegionItems() {
+            ListBoxModel model = new ListBoxModel();
+            for (Regions r : regions) {
+                model.add(r.getName(), r.getName());
+            }
+            return model;
+        }
+
+    }
+
 }
