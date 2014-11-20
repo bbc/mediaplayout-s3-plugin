@@ -78,6 +78,11 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         return userMetadata;
     }
 
+    public String getProfileName() {
+        return this.profileName;
+    }
+
+
     public S3Profile getProfile() {
         return getProfile(profileName);
     }
@@ -94,14 +99,6 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 return profile;
         }
         return null;
-    }
-
-    public String getName() {
-        return this.profileName;
-    }
-
-    public void setName(String profileName) {
-        this.profileName = profileName;
     }
 
     @Override
@@ -273,7 +270,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         }
 
         @SuppressWarnings("unused")
-        public ListBoxModel doFillNameItems() {
+        public ListBoxModel doFillProfileNameItems() {
             ListBoxModel model = new ListBoxModel();
             for (S3Profile profile : profiles) {
                 model.add(profile.getName(), profile.getName());
