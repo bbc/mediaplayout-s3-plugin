@@ -6,11 +6,13 @@ import hudson.model.Descriptor;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 public final class MetadataPair extends AbstractDescribableImpl<MetadataPair> {
+
     /**
      * The key of the user metadata pair to tag an upload with.
      * Can contain macros.
      */
     public String key;
+
     /**
      * The key of the user metadata pair to tag an upload with.
      * Can contain macros.

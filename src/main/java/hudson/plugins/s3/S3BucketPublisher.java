@@ -61,6 +61,9 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
 
         this.profileName = profileName;
         this.entries = entries;
+
+        if (userMetadata==null)
+            userMetadata = new ArrayList<MetadataPair>();
         this.userMetadata = userMetadata;
     }
 
