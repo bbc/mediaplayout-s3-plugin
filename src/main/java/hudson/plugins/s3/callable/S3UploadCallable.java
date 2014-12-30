@@ -11,6 +11,8 @@ import hudson.util.Secret;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
@@ -55,7 +57,21 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
         }
 
         for (MetadataPair metadataPair : userMetadata) {
-            metadata.addUserMetadata(metadataPair.key, metadataPair.value);
+            String key = metadataPair.key.toLowerCase();
+            if (key.equals("cache-control")) {
+                metadata.setCacheControl(metadataPair.value);
+            } else if (key.equals("expires")) {
+                try {
+                    Date expires = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z").parse(metadataPair.value);
+                    metadata.setHttpExpiresDate(expires);
+                } catch (ParseException e) {
+                    metadata.addUserMetadata(metadataPair.key, metadataPair.value);
+                }
+            } else if (key.equals("content-encoding")) {
+                metadata.setContentEncoding(metadataPair.value);
+            } else {
+                metadata.addUserMetadata(metadataPair.key, metadataPair.value);
+            }
         }
         return metadata;
     }
