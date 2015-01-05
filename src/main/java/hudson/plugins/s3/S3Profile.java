@@ -9,6 +9,9 @@ import java.io.PrintStream;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Pattern;
+
+import jenkins.model.Jenkins;
 
 import org.apache.tools.ant.types.selectors.FilenameSelector;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -27,6 +30,7 @@ import com.google.common.collect.Lists;
 import hudson.model.BuildListener;
 import hudson.model.AbstractBuild;
 import hudson.model.Run;
+import hudson.ProxyConfiguration;
 import hudson.plugins.s3.callable.S3DownloadCallable;
 import hudson.plugins.s3.callable.S3UploadCallable;
 import hudson.util.Secret;
@@ -108,9 +112,15 @@ public class S3Profile {
     private ClientConfiguration getClientConfiguration(){
         if (clientConfiguration == null) {
             clientConfiguration = new ClientConfiguration();
-            if(proxyHost != null && proxyHost.length() > 0) {
-                clientConfiguration.setProxyHost(proxyHost);
-                clientConfiguration.setProxyPort(Integer.parseInt(proxyPort));
+
+            ProxyConfiguration proxy = Jenkins.getInstance().proxy;
+            if (shouldUseProxy(proxy, "s3.amazonaws.com")) {
+                clientConfiguration.setProxyHost(proxy.name);
+                clientConfiguration.setProxyPort(proxy.port);
+                if(proxy.getUserName() != null) {
+                    clientConfiguration.setProxyUsername(proxy.getUserName());
+                    clientConfiguration.setProxyPassword(proxy.getPassword());
+                }
             }
         }
         return clientConfiguration;
@@ -142,7 +152,7 @@ public class S3Profile {
         }
 
         try {
-            S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion,useServerSideEncryption);
+            S3UploadCallable callable = new S3UploadCallable(produced, getClient(), dest, userMetadata, storageClass, selregion,useServerSideEncryption);
             if (uploadFromSlave) {
                 return filePath.act(callable);
             } else {
@@ -193,7 +203,7 @@ public class S3Profile {
                   Destination dest = Destination.newFromRun(build, artifact);
                   FilePath target = new FilePath(targetDir, artifact.getName());
                   try {
-                      fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest, console)));
+                      fingerprints.add(target.act(new S3DownloadCallable(getClient(), dest, console)));
                   } catch (IOException e) {
                       e.printStackTrace();
                   } catch (InterruptedException e) {
@@ -237,5 +247,21 @@ public class S3Profile {
           URL url = getClient().generatePresignedUrl(request);
           return url.toExternalForm();
       }
+
+
+    private Boolean shouldUseProxy(ProxyConfiguration proxy, String hostname) {
+        if(proxy == null) {
+            return false;
+        }
+        boolean shouldProxy = true;
+        for(Pattern p : proxy.getNoProxyHostPatterns()) {
+            if(p.matcher(hostname).matches()) {
+                shouldProxy = false;
+                break;
+            }
+        }
+
+        return shouldProxy;
+    }
 
 }
