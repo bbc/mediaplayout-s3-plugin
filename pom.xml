@@ -8,7 +8,7 @@
 
     <artifactId>s3</artifactId>
     <packaging>hpi</packaging>
-    <version>0.7-SNAPSHOT</version>
+    <version>0.8-SNAPSHOT</version>
     <name>Jenkins S3 publisher plugin</name>
     <url>https://wiki.jenkins-ci.org/display/JENKINS/S3+Plugin</url>
 
@@ -49,7 +49,7 @@
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk</artifactId>
-            <version>1.7.8</version>
+            <version>1.9.6</version>
         </dependency>
         <dependency>
             <groupId>net.java.dev.jna</groupId>

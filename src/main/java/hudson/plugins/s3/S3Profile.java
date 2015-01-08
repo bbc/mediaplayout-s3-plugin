@@ -9,6 +9,9 @@ import java.io.PrintStream;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Pattern;
+
+import jenkins.model.Jenkins;
 
 import org.apache.tools.ant.types.selectors.FilenameSelector;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -27,6 +30,7 @@ import com.google.common.collect.Lists;
 import hudson.model.BuildListener;
 import hudson.model.AbstractBuild;
 import hudson.model.Run;
+import hudson.ProxyConfiguration;
 import hudson.plugins.s3.callable.S3DownloadCallable;
 import hudson.plugins.s3.callable.S3UploadCallable;
 import hudson.util.Secret;
@@ -42,12 +46,18 @@ public class S3Profile {
     private transient volatile AmazonS3Client client = null;
     private ClientConfiguration clientConfiguration = null;
     private boolean useRole;
+    private int signedUrlExpirySeconds = 60;
 
     public S3Profile() {
     }
 
-    @DataBoundConstructor
     public S3Profile(String name, String accessKey, String secretKey, String proxyHost, String proxyPort, boolean useRole, String maxUploadRetries, String retryWaitTime) {
+        /* The old hardcoded URL expiry was 4s, so: */
+        this(name, accessKey, secretKey, proxyHost, proxyPort, useRole, 4, maxUploadRetries, retryWaitTime);
+    }
+
+    @DataBoundConstructor
+    public S3Profile(String name, String accessKey, String secretKey, String proxyHost, String proxyPort, boolean useRole, int signedUrlExpirySeconds, String maxUploadRetries, String retryWaitTime) {
         this.name = name;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
@@ -62,6 +72,7 @@ public class S3Profile {
         } catch(NumberFormatException nfe) {
             this.retryWaitTime = 5;
         }
+        this.signedUrlExpirySeconds = signedUrlExpirySeconds;
         if (useRole) {
             this.accessKey = "";
             this.secretKey = null;
@@ -121,9 +132,15 @@ public class S3Profile {
     private ClientConfiguration getClientConfiguration(){
         if (clientConfiguration == null) {
             clientConfiguration = new ClientConfiguration();
-            if(proxyHost != null && proxyHost.length() > 0) {
-                clientConfiguration.setProxyHost(proxyHost);
-                clientConfiguration.setProxyPort(Integer.parseInt(proxyPort));
+
+            ProxyConfiguration proxy = Jenkins.getInstance().proxy;
+            if (shouldUseProxy(proxy, "s3.amazonaws.com")) {
+                clientConfiguration.setProxyHost(proxy.name);
+                clientConfiguration.setProxyPort(proxy.port);
+                if(proxy.getUserName() != null) {
+                    clientConfiguration.setProxyUsername(proxy.getUserName());
+                    clientConfiguration.setProxyPassword(proxy.getPassword());
+                }
             }
         }
         return clientConfiguration;
@@ -154,21 +171,22 @@ public class S3Profile {
             produced = build.getTimeInMillis() <= filePath.lastModified()+2000;
         }
         int retryCount = 0;
-        while(true) {
-	        try {
-	            S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion,useServerSideEncryption);
-	            if (uploadFromSlave) {
-	                return filePath.act(callable);
-	            } else {
-	                return callable.invoke(filePath);
-	            }
-	        } catch (Exception e) {
+
+        while (true) {
+            try {
+                S3UploadCallable callable = new S3UploadCallable(produced, getClient(), dest, userMetadata, storageClass, selregion,useServerSideEncryption);
+                if (uploadFromSlave) {
+                    return filePath.act(callable);
+                } else {
+                    return callable.invoke(filePath);
+                }
+            } catch (Exception e) {
                 retryCount++;
                 if(retryCount >= maxUploadRetries){
                     throw new IOException("put " + dest + ": " + e + ":: Failed after " + retryCount + " tries.");
                 }
                 Thread.sleep(retryWaitTime * 1000);
-	        }
+            }
         }
     }
 
@@ -212,7 +230,7 @@ public class S3Profile {
                   Destination dest = Destination.newFromRun(build, artifact);
                   FilePath target = new FilePath(targetDir, artifact.getName());
                   try {
-                      fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest, console)));
+                      fingerprints.add(target.act(new S3DownloadCallable(getClient(), dest, console)));
                   } catch (IOException e) {
                       e.printStackTrace();
                   } catch (InterruptedException e) {
@@ -234,10 +252,19 @@ public class S3Profile {
           getClient().deleteObject(req);
       }
 
+
+      /**
+       * Generate a signed download request for a redirect from s3/download.
+       *
+       * When the user asks to download a file, we sign a short-lived S3 URL
+       * for them and redirect them to it, so we don't have to proxy for the
+       * download and there's no need for the user to have credentials to
+       * access S3.
+       */
       public String getDownloadURL(Run build, FingerprintRecord record) {
           Destination dest = Destination.newFromRun(build, record.artifact);
           GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(dest.bucketName, dest.objectName);
-          request.setExpiration(new Date(System.currentTimeMillis() + 4000));
+          request.setExpiration(new Date(System.currentTimeMillis() + this.signedUrlExpirySeconds*1000));
           ResponseHeaderOverrides headers = new ResponseHeaderOverrides();
           // let the browser use the last part of the name, not the full path
           // when saving.
@@ -247,5 +274,21 @@ public class S3Profile {
           URL url = getClient().generatePresignedUrl(request);
           return url.toExternalForm();
       }
+
+
+    private Boolean shouldUseProxy(ProxyConfiguration proxy, String hostname) {
+        if(proxy == null) {
+            return false;
+        }
+        boolean shouldProxy = true;
+        for(Pattern p : proxy.getNoProxyHostPatterns()) {
+            if(p.matcher(hostname).matches()) {
+                shouldProxy = false;
+                break;
+            }
+        }
+
+        return shouldProxy;
+    }
 
 }

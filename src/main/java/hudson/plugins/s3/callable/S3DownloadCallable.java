@@ -1,5 +1,6 @@
 package hudson.plugins.s3.callable;
 
+import com.amazonaws.services.s3.AmazonS3Client;
 import hudson.FilePath.FileCallable;
 import hudson.plugins.s3.Destination;
 import hudson.plugins.s3.FingerprintRecord;
@@ -19,9 +20,9 @@ public class S3DownloadCallable extends AbstractS3Callable implements FileCallab
     final private Destination dest;
     final transient private PrintStream log;
     
-    public S3DownloadCallable(String accessKey, Secret secretKey, boolean useRole, Destination dest, PrintStream console) 
+    public S3DownloadCallable(AmazonS3Client client, Destination dest, PrintStream console)
     {
-        super(accessKey, secretKey, useRole);
+        super(client);
         this.dest = dest;
         this.log = console;
     }
