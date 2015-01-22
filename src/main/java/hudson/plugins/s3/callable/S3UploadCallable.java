@@ -120,10 +120,10 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     }
 
     private void setRegion() {
-        // In 0.7, selregion uses Regions#name
+        // In 0.7, selregion comes from Regions#name
         Region region = RegionUtils.getRegion(selregion);
 
-        // In 0.6, selregion uses Regions#valueOf
+        // In 0.6, selregion comes from Regions#valueOf
         if (region == null) {
             region = RegionUtils.getRegion(Regions.valueOf(selregion).getName());
         }
