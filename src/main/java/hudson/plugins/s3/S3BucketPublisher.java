@@ -45,13 +45,16 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
 
     private final List<Entry> entries;
 
+    private boolean dontWaitForConcurrentBuildCompletion;
+
     /**
      * User metadata key/value pairs to tag the upload with.
      */
     private /*almost final*/ List<MetadataPair> userMetadata;
 
     @DataBoundConstructor
-    public S3BucketPublisher(String profileName, List<Entry> entries, List<MetadataPair> userMetadata) {
+    public S3BucketPublisher(String profileName, List<Entry> entries, List<MetadataPair> userMetadata,
+                             boolean dontWaitForConcurrentBuildCompletion) {
         if (profileName == null) {
             // defaults to the first one
             S3Profile[] sites = DESCRIPTOR.getProfiles();
@@ -65,6 +68,8 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         if (userMetadata==null)
             userMetadata = new ArrayList<MetadataPair>();
         this.userMetadata = userMetadata;
+
+        this.dontWaitForConcurrentBuildCompletion = dontWaitForConcurrentBuildCompletion;
     }
 
     protected Object readResolve() {
@@ -85,6 +90,9 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         return this.profileName;
     }
 
+    public boolean isDontWaitForConcurrentBuildCompletion() {
+        return dontWaitForConcurrentBuildCompletion;
+    }
 
     public S3Profile getProfile() {
         return getProfile(profileName);
@@ -234,7 +242,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     }
    
     public BuildStepMonitor getRequiredMonitorService() {
-        return BuildStepMonitor.STEP;
+        return dontWaitForConcurrentBuildCompletion ? BuildStepMonitor.NONE : BuildStepMonitor.STEP;
     }
 
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
