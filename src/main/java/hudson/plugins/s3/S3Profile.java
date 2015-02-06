@@ -183,7 +183,7 @@ public class S3Profile {
             } catch (Exception e) {
                 retryCount++;
                 if(retryCount >= maxUploadRetries){
-                    throw new IOException("put " + dest + ": " + e + ":: Failed after " + retryCount + " tries.");
+                    throw new IOException("put " + dest + ": " + e + ":: Failed after " + retryCount + " tries.", e);
                 }
                 Thread.sleep(retryWaitTime * 1000);
             }
