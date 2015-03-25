@@ -26,18 +26,18 @@ public class Destination implements Serializable {
       throw new IllegalArgumentException("Not defined for null parameters: "+userBucketName+","+fileName);
     
     final String[] bucketNameArray = userBucketName.split("/", 2);
-    final String platformAgnosticFileName = cleanFilenameFromPlatformSpecificCharacters(fileName);
+    final String s3CompatibleFileName = replaceWindowsBackslashes(fileName);
     
     bucketName = bucketNameArray[0];
     
     if (bucketNameArray.length > 1) {
-        objectName = bucketNameArray[1] + "/" + platformAgnosticFileName;
+        objectName = bucketNameArray[1] + "/" + s3CompatibleFileName;
     } else {
-        objectName = platformAgnosticFileName;
+        objectName = s3CompatibleFileName;
     }
   }
 
-  private String cleanFilenameFromPlatformSpecificCharacters(String fileName) {
+  private String replaceWindowsBackslashes(String fileName) {
       return fileName.replace("\\", "/");
   }
 
