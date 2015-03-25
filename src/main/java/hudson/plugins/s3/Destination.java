@@ -37,12 +37,12 @@ public class Destination implements Serializable {
     }
   }
 
-    private String cleanFilenameFromPlatformSpecificCharacters(String fileName) {
-        return fileName.replace("\\", "/");
-    }
+  private String cleanFilenameFromPlatformSpecificCharacters(String fileName) {
+      return fileName.replace("\\", "/");
+  }
 
-    @Override
- public String toString() {
+  @Override
+  public String toString() {
    return "Destination [bucketName="+bucketName+", objectName="+objectName+"]";
  }
   
