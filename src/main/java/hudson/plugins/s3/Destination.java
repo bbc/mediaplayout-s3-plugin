@@ -26,17 +26,22 @@ public class Destination implements Serializable {
       throw new IllegalArgumentException("Not defined for null parameters: "+userBucketName+","+fileName);
     
     final String[] bucketNameArray = userBucketName.split("/", 2);
+    final String platformAgnosticFileName = cleanFilenameFromPlatformSpecificCharacters(fileName);
     
     bucketName = bucketNameArray[0];
     
     if (bucketNameArray.length > 1) {
-        objectName = bucketNameArray[1] + "/" + fileName;
+        objectName = bucketNameArray[1] + "/" + platformAgnosticFileName;
     } else {
-        objectName = fileName;
+        objectName = platformAgnosticFileName;
     }
   }
 
-@Override
+    private String cleanFilenameFromPlatformSpecificCharacters(String fileName) {
+        return fileName.replace("\\", "/");
+    }
+
+    @Override
  public String toString() {
    return "Destination [bucketName="+bucketName+", objectName="+objectName+"]";
  }
