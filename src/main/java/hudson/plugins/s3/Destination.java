@@ -43,8 +43,8 @@ public class Destination implements Serializable {
 
   @Override
   public String toString() {
-   return "Destination [bucketName="+bucketName+", objectName="+objectName+"]";
- }
+    return "Destination [bucketName="+bucketName+", objectName="+objectName+"]";
+  }
   
 
   public static Destination newFromRun(Run run, String bucketName, String fileName)
