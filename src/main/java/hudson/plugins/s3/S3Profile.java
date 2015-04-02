@@ -118,6 +118,22 @@ public class S3Profile {
         this.useRole = useRole;
     }
 
+    public String getProxyHost() {
+        return proxyHost;
+    }
+
+    public String getProxyPort() {
+        return proxyPort;
+    }
+
+    public boolean isUseRole() {
+        return useRole;
+    }
+
+    public int getSignedUrlExpirySeconds() {
+        return signedUrlExpirySeconds;
+    }
+
     public AmazonS3Client getClient() {
         if (client == null) {
             if (useRole) {
