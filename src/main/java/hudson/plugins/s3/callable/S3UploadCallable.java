@@ -1,6 +1,5 @@
 package hudson.plugins.s3.callable;
 
-import com.amazonaws.services.s3.AmazonS3Client;
 import hudson.FilePath;
 import hudson.FilePath.FileCallable;
 import hudson.plugins.s3.Destination;
@@ -34,9 +33,9 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     private final boolean produced;
     private final boolean useServerSideEncryption;
 
-    public S3UploadCallable(boolean produced, AmazonS3Client client, Destination dest, List<MetadataPair> userMetadata, String storageClass,
+    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, Destination dest, List<MetadataPair> userMetadata, String storageClass,
             String selregion, boolean useServerSideEncryption) {
-        super(client);
+        super(accessKey, secretKey, useRole);
         this.dest = dest;
         this.storageClass = storageClass;
         this.userMetadata = userMetadata;
