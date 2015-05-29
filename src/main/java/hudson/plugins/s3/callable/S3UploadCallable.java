@@ -26,6 +26,7 @@ import com.amazonaws.services.s3.model.PutObjectResult;
 
 public class S3UploadCallable extends AbstractS3Callable implements FileCallable<FingerprintRecord> {
     private static final long serialVersionUID = 1L;
+    private final String bucketName;
     private final Destination dest;
     private final String storageClass;
     private final List<MetadataPair> userMetadata;
@@ -33,9 +34,16 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     private final boolean produced;
     private final boolean useServerSideEncryption;
 
+    @Deprecated
     public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, Destination dest, List<MetadataPair> userMetadata, String storageClass,
+                            String selregion, boolean useServerSideEncryption) {
+        this(produced, accessKey, secretKey, useRole, dest.bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption);
+    }
+
+    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, String bucketName, Destination dest, List<MetadataPair> userMetadata, String storageClass,
             String selregion, boolean useServerSideEncryption) {
         super(accessKey, secretKey, useRole);
+        this.bucketName = bucketName;
         this.dest = dest;
         this.storageClass = storageClass;
         this.userMetadata = userMetadata;
@@ -107,7 +115,7 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
             final PutObjectRequest request = new PutObjectRequest(dest.bucketName, dest.objectName, localFile)
                 .withMetadata(buildMetadata(file));
             final PutObjectResult result = getClient().putObject(request);
-            return new FingerprintRecord(produced, dest.bucketName, file.getName(), result.getETag());
+            return new FingerprintRecord(produced, bucketName, file.getName(), result.getETag());
         } finally {
             if (os != null) {
                 os.close();
