@@ -12,7 +12,9 @@ import java.io.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 import com.amazonaws.regions.Region;
@@ -25,11 +27,22 @@ import com.amazonaws.services.s3.model.PutObjectResult;
 import org.apache.commons.io.IOUtils;
 
 public class S3UploadCallable extends AbstractS3Callable implements FileCallable<FingerprintRecord> {
+
+    private static Map<String, String> convertOldMeta(List<MetadataPair> userMeta) {
+        Map<String, String> result = new HashMap<String, String>();
+
+        for (MetadataPair pair : userMeta) {
+            result.put(pair.key, pair.value);
+        }
+
+        return result;
+    }
+
     private static final long serialVersionUID = 1L;
     private final String bucketName;
     private final Destination dest;
     private final String storageClass;
-    private final List<MetadataPair> userMetadata;
+    private final Map<String, String> userMetadata;
     private final String selregion;
     private final boolean produced;
     private final boolean useServerSideEncryption;
@@ -38,10 +51,10 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     @Deprecated
     public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, Destination dest, List<MetadataPair> userMetadata, String storageClass,
                             String selregion, boolean useServerSideEncryption) {
-        this(produced, accessKey, secretKey, useRole, dest.bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption, false);
+        this(produced, accessKey, secretKey, useRole, dest.bucketName, dest, convertOldMeta(userMetadata), storageClass, selregion, useServerSideEncryption, false);
     }
 
-    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, String bucketName, Destination dest, List<MetadataPair> userMetadata, String storageClass,
+    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, String bucketName, Destination dest, Map<String, String> userMetadata, String storageClass,
                             String selregion, boolean useServerSideEncryption, boolean gzipFiles) {
         super(accessKey, secretKey, useRole);
         this.bucketName = bucketName;
@@ -66,21 +79,21 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
             metadata.setServerSideEncryption(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
         }
 
-        for (MetadataPair metadataPair : userMetadata) {
-            String key = metadataPair.key.toLowerCase();
+        for (Map.Entry<String, String> entry : userMetadata.entrySet()) {
+            String key = entry.getKey().toLowerCase();
             if (key.equals("cache-control")) {
-                metadata.setCacheControl(metadataPair.value);
+                metadata.setCacheControl(entry.getValue());
             } else if (key.equals("expires")) {
                 try {
-                    Date expires = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z").parse(metadataPair.value);
+                    Date expires = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z").parse(entry.getValue());
                     metadata.setHttpExpiresDate(expires);
                 } catch (ParseException e) {
-                    metadata.addUserMetadata(metadataPair.key, metadataPair.value);
+                    metadata.addUserMetadata(entry.getKey(), entry.getValue());
                 }
             } else if (key.equals("content-encoding")) {
-                metadata.setContentEncoding(metadataPair.value);
+                metadata.setContentEncoding(entry.getValue());
             } else {
-                metadata.addUserMetadata(metadataPair.key, metadataPair.value);
+                metadata.addUserMetadata(entry.getKey(), entry.getValue());
             }
         }
         return metadata;
