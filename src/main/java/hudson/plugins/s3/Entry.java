@@ -60,10 +60,16 @@ public final class Entry implements Describable<Entry> {
      */
     public boolean flatten;
 
+    /**
+    * use GZIP to compress files
+    */
+
+    public boolean gzipFiles;
+
     @DataBoundConstructor
     public Entry(String bucket, String sourceFile, String storageClass, String selectedRegion,
                  boolean noUploadOnFailure, boolean uploadFromSlave, boolean managedArtifacts,
-                 boolean useServerSideEncryption, boolean flatten) {
+                 boolean useServerSideEncryption, boolean flatten, boolean gzipFiles) {
         this.bucket = bucket;
         this.sourceFile = sourceFile;
         this.storageClass = storageClass;
@@ -73,6 +79,7 @@ public final class Entry implements Describable<Entry> {
         this.managedArtifacts = managedArtifacts;
         this.useServerSideEncryption = useServerSideEncryption;
         this.flatten = flatten;
+        this.gzipFiles = gzipFiles;
     }
 
     public Descriptor<Entry> getDescriptor() {
