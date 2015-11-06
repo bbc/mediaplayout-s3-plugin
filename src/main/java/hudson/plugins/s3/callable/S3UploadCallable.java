@@ -8,13 +8,12 @@ import hudson.plugins.s3.MetadataPair;
 import hudson.remoting.VirtualChannel;
 import hudson.util.Secret;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.zip.GZIPOutputStream;
 
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
@@ -23,6 +22,7 @@ import com.amazonaws.services.s3.internal.Mimetypes;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.PutObjectResult;
+import org.apache.commons.io.IOUtils;
 
 public class S3UploadCallable extends AbstractS3Callable implements FileCallable<FingerprintRecord> {
     private static final long serialVersionUID = 1L;
@@ -33,15 +33,16 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     private final String selregion;
     private final boolean produced;
     private final boolean useServerSideEncryption;
+    private final boolean gzipFiles;
 
     @Deprecated
     public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, Destination dest, List<MetadataPair> userMetadata, String storageClass,
                             String selregion, boolean useServerSideEncryption) {
-        this(produced, accessKey, secretKey, useRole, dest.bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption);
+        this(produced, accessKey, secretKey, useRole, dest.bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption, false);
     }
 
     public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, String bucketName, Destination dest, List<MetadataPair> userMetadata, String storageClass,
-            String selregion, boolean useServerSideEncryption) {
+                            String selregion, boolean useServerSideEncryption, boolean gzipFiles) {
         super(accessKey, secretKey, useRole);
         this.bucketName = bucketName;
         this.dest = dest;
@@ -50,6 +51,7 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
         this.selregion = selregion;
         this.produced = produced;
         this.useServerSideEncryption = useServerSideEncryption;
+        this.gzipFiles = gzipFiles;
     }
 
     public ObjectMetadata buildMetadata(FilePath filePath) throws IOException, InterruptedException {
@@ -97,30 +99,35 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     public FingerprintRecord invoke(FilePath file) throws IOException, InterruptedException {
         setRegion();
 
+        ObjectMetadata metadata = buildMetadata(file);
+
+        InputStream inputStream = file.read();
+
         File localFile = null;
-        FileOutputStream os = null;
-        boolean deleteLocalFile = false;
+
+        if (gzipFiles) {
+            localFile = File.createTempFile("s3plugin", ".bin");
+
+            OutputStream outputStream = new FileOutputStream(localFile);
+
+            outputStream = new GZIPOutputStream(outputStream, true);
+
+            IOUtils.copy(inputStream, outputStream);
+            outputStream.flush();
+            outputStream.close();
+
+            inputStream = new FileInputStream(localFile);
+            metadata.setContentEncoding("gzip");
+            metadata.setContentLength(localFile.length());
+        }
 
         try {
-            if (file.isRemote()) {
-                deleteLocalFile = true;
-                localFile = File.createTempFile("s3plugin", ".bin");
-                os = new FileOutputStream(localFile);
-                file.copyTo(os);
-                os.flush();
-            } else {
-                localFile = new File(file.getRemote());
-            }
-
-            final PutObjectRequest request = new PutObjectRequest(dest.bucketName, dest.objectName, localFile)
-                .withMetadata(buildMetadata(file));
+            final PutObjectRequest request = new PutObjectRequest(dest.bucketName, dest.objectName, inputStream, metadata)
+                .withMetadata(metadata);
             final PutObjectResult result = getClient().putObject(request);
             return new FingerprintRecord(produced, bucketName, file.getName(), result.getETag());
         } finally {
-            if (os != null) {
-                os.close();
-            }
-            if (deleteLocalFile && localFile != null) {
+            if (localFile != null) {
                 localFile.delete();
             }
         }
