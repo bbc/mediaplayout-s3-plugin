@@ -7,6 +7,8 @@ import hudson.model.Descriptor;
 import hudson.util.ListBoxModel;
 import org.kohsuke.stapler.DataBoundConstructor;
 
+import java.util.List;
+
 public final class Entry implements Describable<Entry> {
 
     /**
@@ -66,10 +68,15 @@ public final class Entry implements Describable<Entry> {
 
     public boolean gzipFiles;
 
+    /**
+    * Metadata overrides
+    */
+    public List<MetadataPair> userMetadata;
+
     @DataBoundConstructor
     public Entry(String bucket, String sourceFile, String storageClass, String selectedRegion,
                  boolean noUploadOnFailure, boolean uploadFromSlave, boolean managedArtifacts,
-                 boolean useServerSideEncryption, boolean flatten, boolean gzipFiles) {
+                 boolean useServerSideEncryption, boolean flatten, boolean gzipFiles, List<MetadataPair> userMetadata) {
         this.bucket = bucket;
         this.sourceFile = sourceFile;
         this.storageClass = storageClass;
@@ -80,6 +87,7 @@ public final class Entry implements Describable<Entry> {
         this.useServerSideEncryption = useServerSideEncryption;
         this.flatten = flatten;
         this.gzipFiles = gzipFiles;
+        this.userMetadata = userMetadata;
     }
 
     public Descriptor<Entry> getDescriptor() {
