@@ -17,7 +17,6 @@ import jenkins.model.Jenkins;
 import org.apache.tools.ant.types.selectors.FilenameSelector;
 import org.kohsuke.stapler.DataBoundConstructor;
 
-import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
@@ -44,7 +43,8 @@ public class S3Profile {
     private String proxyPort;
     private int maxUploadRetries;
     private int retryWaitTime;
-    private transient volatile AmazonS3Client client = null;
+    private transient volatile AmazonS3Client client;
+
     private ClientConfiguration clientConfiguration = null;
     private boolean useRole;
     private int signedUrlExpirySeconds = 60;
@@ -137,11 +137,7 @@ public class S3Profile {
 
     public AmazonS3Client getClient() {
         if (client == null) {
-            if (useRole) {
-                client = new AmazonS3Client(getClientConfiguration());
-            } else {
-                client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey.getPlainText()), getClientConfiguration());
-            }
+            client = ClientHelper.createClient(accessKey, secretKey, useRole);
         }
         return client;
     }
@@ -261,7 +257,7 @@ public class S3Profile {
       /**
        * Delete some artifacts of a given run
        * @param build
-       * @param artifact
+       * @param record
        */
       public void delete(Run build, FingerprintRecord record) {
           Destination dest = Destination.newFromRun(build, record.artifact);

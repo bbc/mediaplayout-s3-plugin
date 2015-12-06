@@ -1,5 +1,11 @@
 package hudson.plugins.s3.callable;
 
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.RegionUtils;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.internal.Mimetypes;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.transfer.Upload;
 import hudson.FilePath;
 import hudson.FilePath.FileCallable;
 import hudson.plugins.s3.Destination;
@@ -7,6 +13,7 @@ import hudson.plugins.s3.FingerprintRecord;
 import hudson.plugins.s3.MetadataPair;
 import hudson.remoting.VirtualChannel;
 import hudson.util.Secret;
+import org.apache.commons.io.IOUtils;
 
 import java.io.*;
 import java.text.ParseException;
@@ -16,15 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
-
-import com.amazonaws.regions.Region;
-import com.amazonaws.regions.RegionUtils;
-import com.amazonaws.regions.Regions;
-import com.amazonaws.services.s3.internal.Mimetypes;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import org.apache.commons.io.IOUtils;
 
 public class S3UploadCallable extends AbstractS3Callable implements FileCallable<FingerprintRecord> {
 
@@ -48,14 +46,10 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     private final boolean useServerSideEncryption;
     private final boolean gzipFiles;
 
-    @Deprecated
-    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, Destination dest, List<MetadataPair> userMetadata, String storageClass,
-                            String selregion, boolean useServerSideEncryption) {
-        this(produced, accessKey, secretKey, useRole, dest.bucketName, dest, convertOldMeta(userMetadata), storageClass, selregion, useServerSideEncryption, false);
-    }
 
-    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, String bucketName, Destination dest, Map<String, String> userMetadata, String storageClass,
-                            String selregion, boolean useServerSideEncryption, boolean gzipFiles) {
+    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, String bucketName,
+                            Destination dest, Map<String, String> userMetadata, String storageClass, String selregion,
+                            boolean useServerSideEncryption, boolean gzipFiles) {
         super(accessKey, secretKey, useRole);
         this.bucketName = bucketName;
         this.dest = dest;
@@ -72,7 +66,7 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
         metadata.setContentType(Mimetypes.getInstance().getMimetype(filePath.getName()));
         metadata.setContentLength(filePath.length());
         metadata.setLastModified(new Date(filePath.lastModified()));
-        if ((storageClass != null) && !"".equals(storageClass)) {
+        if (storageClass != null && !storageClass.isEmpty()) {
             metadata.setHeader("x-amz-storage-class", storageClass);
         }
         if (useServerSideEncryption) {
@@ -134,16 +128,15 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
             metadata.setContentLength(localFile.length());
         }
 
-        try {
-            final PutObjectRequest request = new PutObjectRequest(dest.bucketName, dest.objectName, inputStream, metadata)
-                .withMetadata(metadata);
-            final PutObjectResult result = getClient().putObject(request);
-            return new FingerprintRecord(produced, bucketName, file.getName(), result.getETag());
-        } finally {
-            if (localFile != null) {
-                localFile.delete();
-            }
+
+        Upload upload = getTransferManager().upload(dest.bucketName, dest.objectName, inputStream, metadata);
+        String eTag = upload.waitForUploadResult().getETag();
+
+        if (localFile != null) {
+            localFile.delete();
         }
+
+        return new FingerprintRecord(produced, bucketName, file.getName(), eTag);
     }
 
     private void setRegion() {
