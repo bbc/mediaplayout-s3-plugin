@@ -1,13 +1,11 @@
 package hudson.plugins.s3.callable;
 
+import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.plugins.s3.ClientHelper;
 import hudson.util.Secret;
 
 import java.io.Serializable;
-
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3Client;
 
 public class AbstractS3Callable implements Serializable
 {
@@ -41,4 +39,5 @@ public class AbstractS3Callable implements Serializable
 
         return transferManager;
     }
+
 }

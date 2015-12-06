@@ -4,9 +4,6 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3Client;
 import hudson.util.Secret;
 
-/**
- * User: jim
- */
 public class ClientHelper {
     public static AmazonS3Client createClient(String accessKey, Secret secretKey, boolean useRole)
     {
