@@ -6,6 +6,8 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.plugins.s3.ClientHelper;
 import hudson.util.Secret;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.Serializable;
 
 public class AbstractS3Callable implements Serializable
@@ -40,7 +42,7 @@ public class AbstractS3Callable implements Serializable
     }
 
     private String getHash(String access, Secret secret, boolean useRole) {
-        return access + secret.getPlainText() + Boolean.toString(useRole);
+        return access + (secret!=null ? secret.getPlainText() : "null") + Boolean.toString(useRole);
     }
 
     protected synchronized TransferManager getTransferManager()
@@ -68,4 +70,7 @@ public class AbstractS3Callable implements Serializable
         return transferManager;
     }
 
+    protected String getMD5(InputStream inputStream) throws IOException {
+        return org.apache.commons.codec.digest.DigestUtils.md5Hex(inputStream);
+    }
 }

@@ -169,7 +169,7 @@ public class S3Profile {
             throw new IOException(filePath + " is a directory");
         }
 
-        String fileName = null;
+        String fileName;
         if (flatten) {
             fileName = filePath.getName();
         } else {
@@ -180,7 +180,7 @@ public class S3Profile {
         Destination dest = new Destination(bucketName, fileName);
         boolean produced = false;
         if (managedArtifacts) {
-            dest = Destination.newFromBuild(build, bucketName, filePath.getName());
+            dest = Destination.newFromBuild(build, bucketName, fileName);
             produced = build.getTimeInMillis() <= filePath.lastModified()+2000;
         }
         int retryCount = 0;
@@ -242,12 +242,13 @@ public class S3Profile {
               if (selector.isSelected(new File("/"), artifact.getName(), null)) {
                   Destination dest = Destination.newFromRun(build, artifact);
                   FilePath target = new FilePath(targetDir, artifact.getName());
+
                   try {
-                      fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest, console)));
+                      fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest)));
                   } catch (IOException e) {
-                      e.printStackTrace();
+                      e.printStackTrace(console);
                   } catch (InterruptedException e) {
-                      e.printStackTrace();
+                      e.printStackTrace(console);
                   }
               }
           }

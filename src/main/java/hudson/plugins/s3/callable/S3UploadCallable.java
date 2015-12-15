@@ -70,7 +70,7 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
             metadata.setHeader("x-amz-storage-class", storageClass);
         }
         if (useServerSideEncryption) {
-            metadata.setServerSideEncryption(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            metadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
         }
 
         for (Map.Entry<String, String> entry : userMetadata.entrySet()) {
@@ -128,15 +128,23 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
             metadata.setContentLength(localFile.length());
         }
 
-
         Upload upload = getTransferManager().upload(dest.bucketName, dest.objectName, inputStream, metadata);
-        String eTag = upload.waitForUploadResult().getETag();
+
+        upload.waitForCompletion();
+
+        String md5;
+        if (gzipFiles) {
+            md5 = getMD5(new FileInputStream(localFile));
+        }
+        else{
+            md5 = getMD5(file.read());
+        }
 
         if (localFile != null) {
             localFile.delete();
         }
 
-        return new FingerprintRecord(produced, bucketName, file.getName(), eTag);
+        return new FingerprintRecord(produced, bucketName, file.getName(), md5);
     }
 
     private void setRegion() {
