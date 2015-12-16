@@ -54,16 +54,8 @@ public class AbstractS3Callable implements Serializable
             AmazonS3 oldClient = transferManager.getAmazonS3Client();
             AmazonS3 newClient = getClient();
             if (!newClient.equals(oldClient)) {
-                while (transferManager != null) {
-                    try {
-                        transferManager.wait();
-                        transferManager.shutdownNow();
-                        transferManager = null;
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            transferManager = new TransferManager(getClient());
+                transferManager.shutdownNow(true);
+                transferManager = new TransferManager(getClient());
             }
         }
 
