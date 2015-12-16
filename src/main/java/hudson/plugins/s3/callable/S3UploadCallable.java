@@ -45,9 +45,10 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
     private final boolean produced;
     private final boolean useServerSideEncryption;
     private final boolean gzipFiles;
+    private final String destFilename;
 
 
-    public S3UploadCallable(boolean produced, String accessKey, Secret secretKey, boolean useRole, String bucketName,
+    public S3UploadCallable(boolean produced, String destFilename, String accessKey, Secret secretKey, boolean useRole, String bucketName,
                             Destination dest, Map<String, String> userMetadata, String storageClass, String selregion,
                             boolean useServerSideEncryption, boolean gzipFiles) {
         super(accessKey, secretKey, useRole);
@@ -57,6 +58,7 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
         this.userMetadata = userMetadata;
         this.selregion = selregion;
         this.produced = produced;
+        this.destFilename = destFilename;
         this.useServerSideEncryption = useServerSideEncryption;
         this.gzipFiles = gzipFiles;
     }
@@ -144,7 +146,7 @@ public class S3UploadCallable extends AbstractS3Callable implements FileCallable
             localFile.delete();
         }
 
-        return new FingerprintRecord(produced, bucketName, file.getName(), md5);
+        return new FingerprintRecord(produced, bucketName, destFilename, md5);
     }
 
     private void setRegion() {

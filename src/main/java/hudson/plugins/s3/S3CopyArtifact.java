@@ -217,10 +217,14 @@ public class S3CopyArtifact extends Builder {
           console.println("Build " + src.getDisplayName() + "[" + src.number + "] doesn't have any S3 artifacts uploaded");
           return false;
         }
-      
-       
+
         S3Profile profile = S3BucketPublisher.getProfile(action.getProfile());
-        
+
+        if (profile == null) {
+            console.println("Can't find S3 profile");
+            return false;
+        }
+
         try {
             targetDir.mkdirs();
             List<FingerprintRecord> records = profile.downloadAll(src, action.getArtifacts(), expandedFilter, targetDir, isFlatten(), console);
@@ -230,9 +234,7 @@ public class S3CopyArtifact extends Builder {
                 FingerprintMap map = Jenkins.getInstance().getFingerprintMap();
 
                 Fingerprint f = map.getOrCreate(src, record.getName(), record.getFingerprint());
-                if (src!=null) {
-                    f.add((AbstractBuild)src);
-                }
+                f.add((AbstractBuild)src);
                 f.add(dst);
                 fingerprints.put(record.getName(), record.getFingerprint());
             }

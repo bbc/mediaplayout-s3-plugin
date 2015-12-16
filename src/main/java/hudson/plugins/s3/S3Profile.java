@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 
 import jenkins.model.Jenkins;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.tools.ant.types.selectors.FilenameSelector;
 import org.kohsuke.stapler.DataBoundConstructor;
 
@@ -187,7 +188,9 @@ public class S3Profile {
 
         while (true) {
             try {
-                S3UploadCallable callable = new S3UploadCallable(produced, accessKey, secretKey, useRole, bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption, gzipFiles);
+                S3UploadCallable callable = new S3UploadCallable(produced, fileName, accessKey, secretKey, useRole,
+                        bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption, gzipFiles);
+
                 if (uploadFromSlave) {
                     return filePath.act(callable);
                 } else {
@@ -232,17 +235,13 @@ public class S3Profile {
        * Download all artifacts from a given build
        */
       public List<FingerprintRecord> downloadAll(Run build, List<FingerprintRecord> artifacts, String expandedFilter, FilePath targetDir, boolean flatten, PrintStream console) {
-
-          FilenameSelector selector = new FilenameSelector();
-          selector.setName(expandedFilter);
-          
           List<FingerprintRecord> fingerprints = Lists.newArrayList();
           for(FingerprintRecord record : artifacts) {
               S3Artifact artifact = record.artifact;
-              if (selector.isSelected(new File("/"), artifact.getName(), null)) {
-                  Destination dest = Destination.newFromRun(build, artifact);
-                  FilePath target = new FilePath(targetDir, artifact.getName());
+              Destination dest = Destination.newFromRun(build, artifact);
+              FilePath target = getFilePath(targetDir, flatten, artifact);
 
+              if (selected(expandedFilter, artifact)) {
                   try {
                       fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest)));
                   } catch (IOException e) {
@@ -255,7 +254,31 @@ public class S3Profile {
           return fingerprints;
       }
 
-      /**
+    private boolean selected(String expandedFilter, S3Artifact artifact) {
+        final String[] filters = expandedFilter.split(",");
+        final FilenameSelector selector = new FilenameSelector();
+
+        for (String filter : filters) {
+            selector.setName(filter);
+
+            if (selector.isSelected(new File("/"), artifact.getName(), null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private FilePath getFilePath(FilePath targetDir, boolean flatten, S3Artifact artifact) {
+        if (flatten) {
+            return new FilePath(targetDir, FilenameUtils.getName(artifact.getName()));
+        }
+        else  {
+            return new FilePath(targetDir, artifact.getName());
+        }
+    }
+
+    /**
        * Delete some artifacts of a given run
        * @param build
        * @param record
@@ -282,7 +305,7 @@ public class S3Profile {
           ResponseHeaderOverrides headers = new ResponseHeaderOverrides();
           // let the browser use the last part of the name, not the full path
           // when saving.
-          String fileName = (new File(dest.objectName)).getName().trim(); 
+          String fileName = (new File(dest.objectName)).getName().trim();
           headers.setContentDisposition("attachment; filename=\"" + fileName + "\"");
           request.setResponseHeaders(headers);
           URL url = getClient().generatePresignedUrl(request);
