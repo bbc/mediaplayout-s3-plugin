@@ -148,8 +148,9 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 }
                 
                 String expanded = Util.replaceMacro(entry.sourceFile, envVars);
+                String exclude = Util.replaceMacro(entry.excludedFile, envVars);
                 FilePath ws = build.getWorkspace();
-                FilePath[] paths = ws.list(expanded);
+                FilePath[] paths = ws.list(expanded, exclude);
 
                 if (paths.length == 0) {
                     // try to do error diagnostics
