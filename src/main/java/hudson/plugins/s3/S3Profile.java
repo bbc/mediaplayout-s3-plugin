@@ -164,7 +164,7 @@ public class S3Profile {
         getClient().listBuckets();
     }
 
-    public FingerprintRecord upload(AbstractBuild<?,?> build, final BuildListener listener, String bucketName, FilePath filePath, int searchPathLength, Map<String, String> userMetadata,
+    public FingerprintRecord upload(AbstractBuild<?,?> build, final BuildListener listener, String bucketName, FilePath filePath, int workspacePath, Map<String, String> userMetadata,
             String storageClass, String selregion, boolean uploadFromSlave, boolean managedArtifacts, boolean useServerSideEncryption, boolean flatten, boolean gzipFiles) throws IOException, InterruptedException {
         if (filePath.isDirectory()) {
             throw new IOException(filePath + " is a directory");
@@ -175,7 +175,7 @@ public class S3Profile {
             fileName = filePath.getName();
         } else {
             String relativeFileName = filePath.getRemote();
-            fileName = relativeFileName.substring(searchPathLength);
+            fileName = relativeFileName.substring(workspacePath);
         }
 
         Destination dest = new Destination(bucketName, fileName);
