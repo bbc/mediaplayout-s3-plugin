@@ -3,14 +3,17 @@ package hudson.plugins.s3.callable;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
+import hudson.FilePath.FileCallable;
 import hudson.plugins.s3.ClientHelper;
+import hudson.plugins.s3.FingerprintRecord;
 import hudson.util.Secret;
+import org.jenkinsci.remoting.RoleChecker;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
 
-public class AbstractS3Callable implements Serializable
+public abstract class S3Callable implements Serializable, FileCallable<FingerprintRecord>
 {
     private static final long serialVersionUID = 1L;
 
@@ -22,7 +25,7 @@ public class AbstractS3Callable implements Serializable
     private transient static volatile TransferManager transferManager;
     private transient static String oldClient;
 
-    public AbstractS3Callable(String accessKey, Secret secretKey, boolean useRole)
+    public S3Callable(String accessKey, Secret secretKey, boolean useRole)
     {
         this.accessKey = accessKey;
         this.secretKey = secretKey;
@@ -64,5 +67,9 @@ public class AbstractS3Callable implements Serializable
 
     protected String getMD5(InputStream inputStream) throws IOException {
         return org.apache.commons.codec.digest.DigestUtils.md5Hex(inputStream);
+    }
+
+    public void checkRoles(RoleChecker roleChecker) throws SecurityException {
+        
     }
 }

@@ -7,7 +7,6 @@ import com.amazonaws.services.s3.internal.Mimetypes;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.transfer.Upload;
 import hudson.FilePath;
-import hudson.FilePath.FileCallable;
 import hudson.plugins.s3.Destination;
 import hudson.plugins.s3.FingerprintRecord;
 import hudson.plugins.s3.MetadataPair;
@@ -24,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
-public class S3UploadCallable extends AbstractS3Callable implements FileCallable<FingerprintRecord> {
+public class S3UploadCallable extends S3Callable {
 
     private static Map<String, String> convertOldMeta(List<MetadataPair> userMeta) {
         Map<String, String> result = new HashMap<String, String>();

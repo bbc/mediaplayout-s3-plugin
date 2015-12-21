@@ -2,7 +2,6 @@ package hudson.plugins.s3.callable;
 
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.transfer.Download;
-import hudson.FilePath.FileCallable;
 import hudson.plugins.s3.Destination;
 import hudson.plugins.s3.FingerprintRecord;
 import hudson.remoting.VirtualChannel;
@@ -13,7 +12,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class S3DownloadCallable extends AbstractS3Callable implements FileCallable<FingerprintRecord> 
+public class S3DownloadCallable extends S3Callable
 {
     private static final long serialVersionUID = 1L;
     final private Destination dest;
