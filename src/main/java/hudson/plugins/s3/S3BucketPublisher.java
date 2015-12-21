@@ -1,7 +1,6 @@
 package hudson.plugins.s3;
 
 import com.amazonaws.regions.Regions;
-import com.google.common.collect.Iterables;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -16,6 +15,7 @@ import hudson.tasks.Fingerprinter.FingerprintAction;
 import hudson.util.CopyOnWriteList;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import jenkins.tasks.SimpleBuildStep;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
+import javax.annotation.Nonnull;
 import javax.servlet.ServletException;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -32,10 +33,8 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public final class S3BucketPublisher extends Recorder implements Describable<Publisher> {
-    
-    private static final Logger log = Logger.getLogger(S3BucketPublisher.class.getName());
-    
+public final class S3BucketPublisher extends Recorder implements Describable<Publisher>, SimpleBuildStep {
+
     private String profileName;
     @Extension
     public static final DescriptorImpl DESCRIPTOR = new DescriptorImpl();
@@ -119,22 +118,22 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     }
 
     @Override
-    public boolean perform(AbstractBuild<?, ?> build,
-                           Launcher launcher,
-                           BuildListener listener)
+    public void perform(@Nonnull Run<?, ?> run, @Nonnull FilePath ws, @Nonnull Launcher launcher, @Nonnull TaskListener listener)
             throws InterruptedException, IOException {
 
-        final boolean buildFailed = build.getResult() == Result.FAILURE;
+        final boolean buildFailed = run.getResult() == Result.FAILURE;
         
         S3Profile profile = getProfile();
         if (profile == null) {
             log(listener.getLogger(), "No S3 profile is configured.");
-            build.setResult(Result.UNSTABLE);
-            return true;
+
+            run.setResult(Result.UNSTABLE);
+            return;
         }
+
         log(listener.getLogger(), "Using S3 profile: " + profile.getName());
         try {
-            Map<String, String> envVars = build.getEnvironment(listener);
+            Map<String, String> envVars = run.getEnvironment(listener);
             Map<String,String> record = Maps.newHashMap();
             List<FingerprintRecord> artifacts = Lists.newArrayList();
             
@@ -148,7 +147,6 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 
                 String expanded = Util.replaceMacro(entry.sourceFile, envVars);
                 String exclude = Util.replaceMacro(entry.excludedFile, envVars);
-                FilePath ws = build.getWorkspace();
                 FilePath[] paths = ws.list(expanded, exclude);
 
                 if (paths.length == 0) {
@@ -190,32 +188,31 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 int workspacePath = ws.getRemote().length() + 1;
                 for (FilePath src : paths) {
                     log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region=" + selRegion + ", upload from slave=" + entry.uploadFromSlave + " managed="+ entry.managedArtifacts + " , server encryption "+entry.useServerSideEncryption);
-                    records.add(profile.upload(build, listener, bucket, src, workspacePath, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.flatten, entry.gzipFiles));
+                    records.add(profile.upload(run, listener, bucket, src, workspacePath, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.flatten, entry.gzipFiles));
                 }
                 if (entry.managedArtifacts) {
                     artifacts.addAll(records);
     
                     for (FingerprintRecord r : records) {
-                      Fingerprint fp = r.addRecord(build);
+                      Fingerprint fp = r.addRecord(run);
                       if(fp==null) {
                           listener.error("Fingerprinting failed for "+r.getName());
                           continue;
                       }
-                      fp.add(build);
+                      fp.addFor(run);
                       record.put(r.getName(),fp.getHashString());
                    }
                 }
             }
             // don't bother adding actions if none of the artifacts are managed
             if (artifacts.size() > 0) {
-                build.getActions().add(new S3ArtifactsAction(build, profile, artifacts ));
-                build.getActions().add(new FingerprintAction(build,record));
+                run.getActions().add(new S3ArtifactsAction(run, profile, artifacts ));
+                run.getActions().add(new FingerprintAction(run,record));
             }
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
-            build.setResult(Result.UNSTABLE);
+            run.setResult(Result.UNSTABLE);
         }
-        return true;
     }
 
     // Listen for project renames and update property here if needed.

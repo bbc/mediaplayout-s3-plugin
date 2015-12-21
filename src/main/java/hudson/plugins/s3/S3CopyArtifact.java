@@ -31,27 +31,13 @@ import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.console.HyperlinkNote;
-import hudson.matrix.MatrixBuild;
-import hudson.matrix.MatrixProject;
 import hudson.maven.MavenModuleSet;
 import hudson.maven.MavenModuleSetBuild;
-import hudson.model.AbstractBuild;
-import hudson.model.AbstractProject;
-import hudson.model.Build;
-import hudson.model.BuildListener;
-import hudson.model.Descriptor;
-import hudson.model.EnvironmentContributingAction;
-import hudson.model.Fingerprint;
-import hudson.model.FingerprintMap;
-import hudson.model.Hudson;
-import hudson.model.Job;
-import hudson.model.Item;
-import hudson.model.Project;
-import hudson.model.Run;
-import hudson.model.TaskListener;
+import hudson.model.*;
 import hudson.model.listeners.ItemListener;
 import hudson.model.listeners.RunListener;
 import hudson.plugins.copyartifact.*;
+import hudson.plugins.copyartifact.Messages;
 import hudson.security.AccessControlled;
 import hudson.security.SecurityRealm;
 import hudson.tasks.BuildStepDescriptor;
@@ -72,18 +58,21 @@ import java.util.logging.Logger;
 
 import jenkins.model.Jenkins;
 
+import jenkins.tasks.SimpleBuildStep;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 
+import javax.annotation.Nonnull;
+
 /**
  * This is a S3 variant of the CopyArtifact plugin:
  * Build step to copy artifacts from another project.
  * @author Alan Harder
  */
-public class S3CopyArtifact extends Builder {
+public class S3CopyArtifact extends Builder implements SimpleBuildStep {
 
     private String projectName;
     private final String includeFilter;
@@ -143,17 +132,25 @@ public class S3CopyArtifact extends Builder {
         return optional != null && optional;
     }
 
+    private void setResult(@Nonnull Run<?, ?> run, boolean result) {
+        if (result)
+            run.setResult(Result.SUCCESS);
+        else
+            run.setResult(Result.FAILURE);
+    }
+
     @Override
-    public boolean perform(AbstractBuild<?,?> build, Launcher launcher, BuildListener listener)
-            throws InterruptedException {
+    /*public boolean perform(AbstractBuild<?,?> build, Launcher launcher, BuildListener listener)
+            throws InterruptedException {*/
+
+    public void perform(@Nonnull Run<?, ?> dst, @Nonnull FilePath targetDir, @Nonnull Launcher launcher, @Nonnull TaskListener listener) throws InterruptedException, IOException {
         PrintStream console = listener.getLogger();
         String expandedProject = projectName;
         String includeFilter = getIncludeFilter();
         String excludeFilter = getExcludeFilter();
 
         try {
-            EnvVars env = build.getEnvironment(listener);
-            env.overrideAll(build.getBuildVariables()); // Add in matrix axes..
+            EnvVars env = dst.getEnvironment(listener);
             expandedProject = env.expand(projectName);
             JobResolver job = new JobResolver(expandedProject);
             if (job.job != null && !expandedProject.equals(projectName)
@@ -169,22 +166,24 @@ public class S3CopyArtifact extends Builder {
             }
             if (job.job == null) {
                 console.println(Messages.CopyArtifact_MissingProject(expandedProject));
-                return false;
+                setResult(dst, false);
+                return;
             }
-            Run src = selector.getBuild(job.job, env, job.filter, build);
+            Run src = selector.getBuild(job.job, env, job.filter, dst);
             if (src == null) {
                 console.println(Messages.CopyArtifact_MissingBuild(expandedProject));
-                return isOptional();  // Fail build unless copy is optional
+                setResult(dst,  isOptional());  // Fail build unless copy is optional
+                return;
             }
 
-            FilePath targetDir = build.getWorkspace();
-            if (targetDir == null || !targetDir.exists()) {
+            if (!targetDir.exists()) {
                 console.println(Messages.CopyArtifact_MissingWorkspace()); // (see JENKINS-3330)
-                return isOptional();  // Fail build unless copy is optional
+                setResult(dst, isOptional());  // Fail build unless copy is optional
+                return;
             }
 
             // Add info about the selected build into the environment
-            EnvAction envData = build.getAction(EnvAction.class);
+            EnvAction envData = dst.getAction(EnvAction.class);
             if (envData != null) {
                 envData.add(expandedProject, src.getNumber());
             }
@@ -200,38 +199,27 @@ public class S3CopyArtifact extends Builder {
 
             if (src instanceof MavenModuleSetBuild) {
                 // Copy artifacts from the build (ArchiveArtifacts build step)
-                boolean ok = perform(src, build, includeFilter, excludeFilter, targetDir, console);
+                boolean ok = perform(src, dst, includeFilter, excludeFilter, targetDir, console);
 
                 // Copy artifacts from all modules of this Maven build (automatic archiving)
                 for (Run r : ((MavenModuleSetBuild)src).getModuleLastBuilds().values()) {
-                    ok |= perform(r, build, includeFilter, excludeFilter, targetDir, console);
+                    ok |= perform(r, dst, includeFilter, excludeFilter, targetDir, console);
                 }
 
-                return ok;
-            } else if (src instanceof MatrixBuild) {
-                boolean ok = false;
-                // Copy artifacts from all configurations of this matrix build
-                // Use MatrixBuild.getExactRuns if available
-                for (Run r : ((MatrixBuild) src).getExactRuns()) {
-                    // Use subdir of targetDir with configuration name (like "jdk=java6u20")
-                    FilePath subdir = targetDir.child(r.getParent().getName());
-                    ok |= perform(r, build, includeFilter, excludeFilter, subdir, console);
-                }
-
-                return ok;
+                setResult(dst, ok);
             } else {
-                return perform(src, build, includeFilter, excludeFilter, targetDir, console);
+                setResult(dst, perform(src, dst, includeFilter, excludeFilter, targetDir, console));
             }
         }
         catch (IOException ex) {
             Util.displayIOException(ex, listener);
             ex.printStackTrace(listener.error(
                     Messages.CopyArtifact_FailedToCopy(expandedProject, includeFilter)));
-            return false;
+            setResult(dst, false);
         }
     }
 
-    private boolean perform(Run src, AbstractBuild<?,?> dst, String includeFilter, String excludeFilter, FilePath targetDir, PrintStream console)
+    private boolean perform(Run src, Run<?,?> dst, String includeFilter, String excludeFilter, FilePath targetDir, PrintStream console)
             throws IOException, InterruptedException {
 
         S3ArtifactsAction action = src.getAction(S3ArtifactsAction.class);
@@ -255,12 +243,12 @@ public class S3CopyArtifact extends Builder {
             FingerprintMap map = Jenkins.getInstance().getFingerprintMap();
 
             Fingerprint f = map.getOrCreate(src, record.getName(), record.getFingerprint());
-            f.add((AbstractBuild)src);
-            f.add(dst);
+            f.addFor(src);
+            f.addFor(dst);
             fingerprints.put(record.getName(), record.getFingerprint());
         }
 
-        for (AbstractBuild r : new AbstractBuild[]{src instanceof AbstractBuild ? (AbstractBuild)src : null, dst}) {
+        for (Run r : new Run[]{src, dst}) {
             if (r == null)
                 continue;
 
@@ -282,13 +270,13 @@ public class S3CopyArtifact extends Builder {
         BuildFilter filter = new BuildFilter();
 
         JobResolver(String projectName) {
-            Hudson hudson = Hudson.getInstance();
-            job = hudson.getItemByFullName(projectName, Job.class);
+            Jenkins jenkins = Hudson.getActiveInstance();
+            job = jenkins.getItemByFullName(projectName, Job.class);
             if (job == null) {
                 // Check for parameterized job with filter (see help file)
                 int i = projectName.indexOf('/');
                 if (i > 0) {
-                    Job<?,?> candidate = hudson.getItemByFullName(projectName.substring(0, i), Job.class);
+                    Job<?,?> candidate = jenkins.getItemByFullName(projectName.substring(0, i), Job.class);
                     if (candidate != null) {
                         ParametersBuildFilter pFilter = new ParametersBuildFilter(projectName.substring(i + 1));
                         if (pFilter.isValid(candidate)) {
@@ -314,9 +302,7 @@ public class S3CopyArtifact extends Builder {
                 
                 result = item instanceof MavenModuleSet
                        ? FormValidation.warning(Messages.CopyArtifact_MavenProject())
-                       : (item instanceof MatrixProject
-                          ? FormValidation.warning(Messages.CopyArtifact_MatrixProject())
-                          : FormValidation.ok());
+                       : (FormValidation.ok());
             }
             else if (value.indexOf('$') >= 0)
                 result = FormValidation.warning(Messages.CopyArtifact_ParameterizedName());
@@ -349,7 +335,7 @@ public class S3CopyArtifact extends Builder {
         @Override
         public void onRenamed(Item item, String oldName, String newName) {
             for (AbstractProject<?,?> project
-                    : Hudson.getInstance().getAllItems(AbstractProject.class)) {
+                    : Hudson.getActiveInstance().getAllItems(AbstractProject.class)) {
                 for (S3CopyArtifact ca : getCopiers(project)) try {
                     if (ca.getProjectName().equals(oldName))
                         ca.projectName = newName;
@@ -369,11 +355,12 @@ public class S3CopyArtifact extends Builder {
 
         private static List<S3CopyArtifact> getCopiers(AbstractProject project) {
             DescribableList<Builder,Descriptor<Builder>> list =
-                    project instanceof Project ? ((Project<?,?>)project).getBuildersList()
-                      : (project instanceof MatrixProject ?
-                          ((MatrixProject)project).getBuildersList() : null);
-            if (list == null) return Collections.emptyList();
-            return (List<S3CopyArtifact>)list.getAll(S3CopyArtifact.class);
+                    project instanceof Project ? ((Project<?,?>)project).getBuildersList() : null;
+
+            if (list == null)
+                return Collections.emptyList();
+
+            return list.getAll(S3CopyArtifact.class);
         }
     }
 

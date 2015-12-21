@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import hudson.model.TaskListener;
 import jenkins.model.Jenkins;
 
 import org.apache.commons.io.FilenameUtils;
@@ -164,8 +165,10 @@ public class S3Profile {
         getClient().listBuckets();
     }
 
-    public FingerprintRecord upload(AbstractBuild<?,?> build, final BuildListener listener, String bucketName, FilePath filePath, int workspacePath, Map<String, String> userMetadata,
-            String storageClass, String selregion, boolean uploadFromSlave, boolean managedArtifacts, boolean useServerSideEncryption, boolean flatten, boolean gzipFiles) throws IOException, InterruptedException {
+    public FingerprintRecord upload(Run<?, ?> run, final TaskListener listener, String bucketName, FilePath filePath,
+                                    int workspacePath, Map<String, String> userMetadata,
+                                    String storageClass, String selregion, boolean uploadFromSlave,
+                                    boolean managedArtifacts, boolean useServerSideEncryption, boolean flatten, boolean gzipFiles) throws IOException, InterruptedException {
         if (filePath.isDirectory()) {
             throw new IOException(filePath + " is a directory");
         }
@@ -181,8 +184,8 @@ public class S3Profile {
         Destination dest = new Destination(bucketName, fileName);
         boolean produced = false;
         if (managedArtifacts) {
-            dest = Destination.newFromBuild(build, bucketName, fileName);
-            produced = build.getTimeInMillis() <= filePath.lastModified()+2000;
+            dest = Destination.newFromRun(run, bucketName, fileName);
+            produced = run.getTimeInMillis() <= filePath.lastModified()+2000;
         }
         int retryCount = 0;
 
@@ -267,11 +270,11 @@ public class S3Profile {
 
     /**
        * Delete some artifacts of a given run
-       * @param build
+       * @param run
        * @param record
        */
-      public void delete(Run build, FingerprintRecord record) {
-          Destination dest = Destination.newFromRun(build, record.artifact);
+      public void delete(Run run, FingerprintRecord record) {
+          Destination dest = Destination.newFromRun(run, record.artifact);
           DeleteObjectRequest req = new DeleteObjectRequest(dest.bucketName, dest.objectName);
           getClient().deleteObject(req);
       }
@@ -285,8 +288,8 @@ public class S3Profile {
        * download and there's no need for the user to have credentials to
        * access S3.
        */
-      public String getDownloadURL(Run build, FingerprintRecord record) {
-          Destination dest = Destination.newFromRun(build, record.artifact);
+      public String getDownloadURL(Run run, FingerprintRecord record) {
+          Destination dest = Destination.newFromRun(run, record.artifact);
           GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(dest.bucketName, dest.objectName);
           request.setExpiration(new Date(System.currentTimeMillis() + this.signedUrlExpirySeconds*1000));
           ResponseHeaderOverrides headers = new ResponseHeaderOverrides();
