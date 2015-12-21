@@ -234,14 +234,14 @@ public class S3Profile {
       /**
        * Download all artifacts from a given build
        */
-      public List<FingerprintRecord> downloadAll(Run build, List<FingerprintRecord> artifacts, String expandedFilter, FilePath targetDir, boolean flatten, PrintStream console) {
+      public List<FingerprintRecord> downloadAll(Run build, List<FingerprintRecord> artifacts, String includeFilter, String excludeFilter, FilePath targetDir, boolean flatten, PrintStream console) {
           List<FingerprintRecord> fingerprints = Lists.newArrayList();
           for(FingerprintRecord record : artifacts) {
               S3Artifact artifact = record.artifact;
               Destination dest = Destination.newFromRun(build, artifact);
               FilePath target = getFilePath(targetDir, flatten, artifact);
 
-              if (selected(expandedFilter, artifact)) {
+              if (FileHelper.selected(includeFilter, excludeFilter, artifact.getName())) {
                   try {
                       fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest)));
                   } catch (IOException e) {
@@ -254,20 +254,7 @@ public class S3Profile {
           return fingerprints;
       }
 
-    private boolean selected(String expandedFilter, S3Artifact artifact) {
-        final String[] filters = expandedFilter.split(",");
-        final FilenameSelector selector = new FilenameSelector();
 
-        for (String filter : filters) {
-            selector.setName(filter);
-
-            if (selector.isSelected(new File("/"), artifact.getName(), null)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private FilePath getFilePath(FilePath targetDir, boolean flatten, S3Artifact artifact) {
         if (flatten) {

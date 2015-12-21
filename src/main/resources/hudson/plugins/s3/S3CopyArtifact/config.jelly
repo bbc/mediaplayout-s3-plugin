@@ -5,9 +5,12 @@
   </f:entry>
   <f:dropdownDescriptorSelector field="buildSelector" help="/plugin/copyartifact/help-buildSelector.html"
     name="buildSelector" title="Which build" descriptors="${descriptor.availableBuildSelectorList}" />
-  <f:entry title="Artifacts to copy" field="filter">
+  <f:entry title="Artifacts to copy" field="includeFilter">
     <f:textbox/>
   </f:entry>
+  <f:entry title="Artifacts not to copy" field="excludeFilter">
+      <f:textbox/>
+    </f:entry>
   <f:entry title="Target directory" field="target">
     <f:textbox/>
   </f:entry>
