@@ -16,7 +16,6 @@ import hudson.model.TaskListener;
 import jenkins.model.Jenkins;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.tools.ant.types.selectors.FilenameSelector;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -29,8 +28,7 @@ import com.amazonaws.services.s3.model.ResponseHeaderOverrides;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.collect.Lists;
 
-import hudson.model.BuildListener;
-import hudson.model.AbstractBuild;
+
 import hudson.model.Run;
 import hudson.ProxyConfiguration;
 import hudson.plugins.s3.callable.S3DownloadCallable;
@@ -210,7 +208,7 @@ public class S3Profile {
     }
 
     public List<String> list(Run build, String bucket, String expandedFilter) {
-        AmazonS3Client s3client = getClient();        
+        AmazonS3Client s3client = getClient();
 
         String buildName = build.getDisplayName();
         int buildID = build.getNumber();
@@ -221,7 +219,7 @@ public class S3Profile {
         .withPrefix(dest.objectName);
 
         List<String> files = Lists.newArrayList();
-        
+
         ObjectListing objectListing;
         do {
           objectListing = s3client.listObjects(listObjectsRequest);
@@ -230,7 +228,7 @@ public class S3Profile {
             files.add(req.getKey());
           }
           listObjectsRequest.setMarker(objectListing.getNextMarker());
-        } while (objectListing.isTruncated());        
+        } while (objectListing.isTruncated());
         return files;
       }
 
@@ -316,6 +314,17 @@ public class S3Profile {
         }
 
         return shouldProxy;
+    }
+
+
+    @Override
+    public String toString() {
+        return "S3Profile{" +
+                "name='" + name + '\'' +
+                ", accessKey='" + accessKey + '\'' +
+                ", secretKey=" + secretKey +
+                ", useRole=" + useRole +
+                '}';
     }
 
 }

@@ -70,6 +70,6 @@ public abstract class S3Callable implements Serializable, FileCallable<Fingerpri
     }
 
     public void checkRoles(RoleChecker roleChecker) throws SecurityException {
-        
+
     }
 }

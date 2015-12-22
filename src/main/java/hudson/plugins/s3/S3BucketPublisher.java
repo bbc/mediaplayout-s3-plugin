@@ -16,6 +16,8 @@ import hudson.util.CopyOnWriteList;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.tasks.SimpleBuildStep;
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
@@ -264,7 +266,13 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
 
         @Override
         public boolean configure(StaplerRequest req, net.sf.json.JSONObject json) throws FormException {
-            profiles.replaceBy(req.bindParametersToList(S3Profile.class, "s3."));
+            JSONArray array = json.optJSONArray("profile");
+            if (array != null) {
+                profiles.replaceBy(req.bindJSONToList(S3Profile.class, array));
+            }
+            else {
+                profiles.replaceBy(req.bindJSON(S3Profile.class, json.getJSONObject("profile")));
+            }
             save();
             return true;
         }
@@ -279,15 +287,34 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         }
 
         public S3Profile[] getProfiles() {
-            return profiles.toArray(new S3Profile[0]);
+            S3Profile[] profileArray = new S3Profile[profiles.size()];
+            return profiles.toArray(profileArray);
         }
 
         public FormValidation doLoginCheck(final StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
-            String name = Util.fixEmpty(req.getParameter("name"));
-            if (name == null) {// name is not entered yet
-                return FormValidation.ok();
+            String name = Util.fixNull(req.getParameter("name"));
+            String accessKey = Util.fixNull(req.getParameter("accessKey"));
+            String secretKey = Util.fixNull(req.getParameter("secretKey"));
+            String useIAMCredential = Util.fixNull(req.getParameter("useRole"));
+
+            boolean couldBeValidated = !name.isEmpty() && !accessKey.isEmpty() && !secretKey.isEmpty();
+            boolean useRole = Boolean.parseBoolean(useIAMCredential);
+
+            if (!couldBeValidated) {
+                if (name.isEmpty())
+                    return FormValidation.ok("Please, enter name");
+
+                if (useRole)
+                    return FormValidation.ok();
+
+                if (accessKey.isEmpty())
+                    return FormValidation.ok("Please, enter accessKey");
+
+                if (secretKey.isEmpty())
+                    return FormValidation.ok("Please, enter secretKey");
             }
-            S3Profile profile = new S3Profile(name, req.getParameter("accessKey"), req.getParameter("secretKey"), req.getParameter("proxyHost"), req.getParameter("proxyPort"), false, req.getParameter("maxUploadRetries"), req.getParameter("retryWaitTime"));
+
+            S3Profile profile = new S3Profile(name, accessKey, secretKey, req.getParameter("proxyHost"), req.getParameter("proxyPort"), useRole, req.getParameter("maxUploadRetries"), req.getParameter("retryWaitTime"));
 
             try {
                 profile.check();
@@ -295,7 +322,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error("Can't connect to S3 service: " + e.getMessage());
             }
-            return FormValidation.ok();
+            return FormValidation.ok("Check passed!");
         }
 
         @Override
