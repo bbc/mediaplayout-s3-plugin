@@ -7,12 +7,6 @@
           <f:entry title="Profile name" help="/plugin/s3/help-profile.html">
             <f:textbox name="s3.name" value="${profile.name}" onchange="Form.findMatchingInput(this,'s3.accessKey').onchange()"/>
           </f:entry>
-          <f:entry title="Max upload retries">
-            <f:number name="s3.maxUploadRetries" value="${profile.maxUploadRetries}"/>
-          </f:entry>
-          <f:entry title="Retry wait time (seconds)" >
-            <f:number name="s3.retryWaitTime" value="${profile.retryWaitTime}"/>
-          </f:entry>
           <f:entry title="Use IAM Role" help="/plugin/s3/help-role.html">
             <f:checkbox name="s3.useRole" value="${profile.useRole}" checked="${profile.useRole}"/>
           </f:entry>
@@ -29,6 +23,18 @@
             />
           </f:entry>
           <f:advanced>
+            <f:entry title="Max upload retries">
+                <f:number name="s3.maxUploadRetries" value="${profile.maxUploadRetries}"/>
+            </f:entry>
+            <f:entry title="Retry wait time (seconds) for uploading" >
+                <f:number name="s3.uploadRetryTime" value="${profile.uploadRetryTime}"/>
+            </f:entry>
+            <f:entry title="Max download retries">
+                <f:number name="s3.maxDownloadRetries" value="${profile.maxDownloadRetries}"/>
+            </f:entry>
+            <f:entry title="Retry wait time (seconds) for downloading" >
+                <f:number name="s3.downloadRetryTime" value="${profile.downloadRetryTime}"/>
+            </f:entry>
             <f:entry title="Download URL expiry (seconds)" help="/plugin/s3/help-signedUrlExpirySeconds.html">
               <f:number clazz="positive-number" name="s3.signedUrlExpirySeconds"
                         value="${profile.signedUrlExpirySeconds}" default="60" />

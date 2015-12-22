@@ -236,7 +236,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         }
 
         targetDir.mkdirs();
-        List<FingerprintRecord> records = profile.downloadAll(src, action.getArtifacts(), includeFilter, excludeFilter, targetDir, isFlatten(), console);
+        List<FingerprintRecord> records = profile.downloadAll(src, action.getArtifacts(), includeFilter, excludeFilter, targetDir, isFlatten());
 
         Map<String, String> fingerprints = Maps.newHashMap();
         for(FingerprintRecord record : records) {

@@ -4,11 +4,11 @@ import hudson.FilePath;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.net.URL;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import hudson.model.TaskListener;
 
@@ -32,33 +32,29 @@ import hudson.plugins.s3.callable.S3UploadCallable;
 import hudson.util.Secret;
 
 public class S3Profile {
-    private String name;
-    private String accessKey;
-    private Secret secretKey;
-    private int maxUploadRetries;
-    private int retryWaitTime;
+    private final String name;
+    private final String accessKey;
+    private final Secret secretKey;
+    private final int maxUploadRetries;
+    private final int uploadRetryTime;
+    private final int maxDownloadRetries;
+    private final int downloadRetryTime;
     private transient volatile AmazonS3Client client;
 
-    private boolean useRole;
-    private int signedUrlExpirySeconds = 60;
+    private final boolean useRole;
+    private final int signedUrlExpirySeconds;
 
-    public S3Profile() {
-    }
+//    public S3Profile() {
+//    }
 
     @DataBoundConstructor
-    public S3Profile(String name, String accessKey, String secretKey, boolean useRole, int signedUrlExpirySeconds, String maxUploadRetries, String retryWaitTime) {
+    public S3Profile(String name, String accessKey, String secretKey, boolean useRole, int signedUrlExpirySeconds, String maxUploadRetries, String uploadRetryTime, String maxDownloadRetries, String downloadRetryTime) {
         this.name = name;
         this.useRole = useRole;
-        try {
-            this.maxUploadRetries = Integer.parseInt(maxUploadRetries);
-        } catch(NumberFormatException nfe) {
-            this.maxUploadRetries = 5;
-        }
-        try {
-            this.retryWaitTime = Integer.parseInt(retryWaitTime);
-        } catch(NumberFormatException nfe) {
-            this.retryWaitTime = 5;
-        }
+        this.maxUploadRetries = parseWithDefault(maxUploadRetries, 5);
+        this.uploadRetryTime = parseWithDefault(uploadRetryTime, 5);
+        this.maxDownloadRetries = parseWithDefault(maxDownloadRetries, 5);
+        this.downloadRetryTime = parseWithDefault(downloadRetryTime, 5);
         this.signedUrlExpirySeconds = signedUrlExpirySeconds;
         if (useRole) {
             this.accessKey = "";
@@ -69,12 +65,24 @@ public class S3Profile {
         }
     }
 
-    public final String getAccessKey() {
-        return accessKey;
+    private int parseWithDefault(String number, int defaultValue) {
+        try {
+            return Integer.parseInt(number);
+        } catch(NumberFormatException nfe) {
+            return defaultValue;
+        }
     }
 
-    public void setAccessKey(String accessKey) {
-        this.accessKey = accessKey;
+    public int getMaxDownloadRetries() {
+        return maxDownloadRetries;
+    }
+
+    public int getDownloadRetryTime() {
+        return downloadRetryTime;
+    }
+
+    public final String getAccessKey() {
+        return accessKey;
     }
 
     public final Secret getSecretKey() {
@@ -85,24 +93,16 @@ public class S3Profile {
         return maxUploadRetries;
     }
 
-    public final int getRetryWaitTime() {
-        return retryWaitTime;
+    public final int getUploadRetryTime() {
+        return uploadRetryTime;
     }
 
     public final String getName() {
         return this.name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
     public final boolean getUseRole() {
         return this.useRole;
-    }
-
-    public void setUseRole(boolean useRole) {
-        this.useRole = useRole;
     }
 
     public boolean isUseRole() {
@@ -124,15 +124,24 @@ public class S3Profile {
         getClient().listBuckets();
     }
 
-    public FingerprintRecord upload(Run<?, ?> run, final TaskListener listener, String bucketName, FilePath filePath,
-                                    int workspacePath, Map<String, String> userMetadata,
-                                    String storageClass, String selregion, boolean uploadFromSlave,
-                                    boolean managedArtifacts, boolean useServerSideEncryption, boolean flatten, boolean gzipFiles) throws IOException, InterruptedException {
+    public FingerprintRecord upload(Run<?, ?> run,
+                                    final TaskListener listener,
+                                    final String bucketName,
+                                    final FilePath filePath,
+                                    final int workspacePath,
+                                    final Map<String, String> userMetadata,
+                                    final String storageClass,
+                                    final String selregion,
+                                    final boolean uploadFromSlave,
+                                    final boolean managedArtifacts,
+                                    final boolean useServerSideEncryption,
+                                    final boolean flatten,
+                                    final boolean gzipFiles) throws IOException, InterruptedException {
         if (filePath.isDirectory()) {
             throw new IOException(filePath + " is a directory");
         }
 
-        String fileName;
+        final String fileName;
         if (flatten) {
             fileName = filePath.getName();
         } else {
@@ -140,16 +149,19 @@ public class S3Profile {
             fileName = relativeFileName.substring(workspacePath);
         }
 
-        Destination dest = new Destination(bucketName, fileName);
-        boolean produced = false;
+        final Destination dest;
+        final boolean produced;
         if (managedArtifacts) {
             dest = Destination.newFromRun(run, bucketName, fileName);
             produced = run.getTimeInMillis() <= filePath.lastModified()+2000;
         }
-        int retryCount = 0;
+        else {
+            dest = new Destination(bucketName, fileName);
+            produced = false;
+        }
 
-        while (true) {
-            try {
+        return repeat(maxUploadRetries, uploadRetryTime, new Callable<FingerprintRecord>() {
+            public FingerprintRecord call() throws IOException, InterruptedException {
                 S3UploadCallable callable = new S3UploadCallable(produced, fileName, accessKey, secretKey, useRole,
                         bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption, gzipFiles);
 
@@ -158,14 +170,8 @@ public class S3Profile {
                 } else {
                     return callable.invoke(filePath);
                 }
-            } catch (Exception e) {
-                retryCount++;
-                if(retryCount >= maxUploadRetries){
-                    throw new IOException("put " + dest + ": " + e + ":: Failed after " + retryCount + " tries.", e);
-                }
-                Thread.sleep(retryWaitTime * 1000);
             }
-        }
+        });
     }
 
     public List<String> list(Run build, String bucket, String expandedFilter) {
@@ -196,27 +202,45 @@ public class S3Profile {
       /**
        * Download all artifacts from a given build
        */
-      public List<FingerprintRecord> downloadAll(Run build, List<FingerprintRecord> artifacts, String includeFilter, String excludeFilter, FilePath targetDir, boolean flatten, PrintStream console) {
+      public List<FingerprintRecord> downloadAll(Run build,
+                                                 final List<FingerprintRecord> artifacts,
+                                                 final String includeFilter,
+                                                 final String excludeFilter,
+                                                 final FilePath targetDir,
+                                                 final boolean flatten) throws IOException, InterruptedException {
           List<FingerprintRecord> fingerprints = Lists.newArrayList();
           for(FingerprintRecord record : artifacts) {
               S3Artifact artifact = record.artifact;
-              Destination dest = Destination.newFromRun(build, artifact);
-              FilePath target = getFilePath(targetDir, flatten, artifact);
+              final Destination dest = Destination.newFromRun(build, artifact);
+              final FilePath target = getFilePath(targetDir, flatten, artifact);
 
               if (FileHelper.selected(includeFilter, excludeFilter, artifact.getName())) {
-                  try {
-                      fingerprints.add(target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest)));
-                  } catch (IOException e) {
-                      e.printStackTrace(console);
-                  } catch (InterruptedException e) {
-                      e.printStackTrace(console);
-                  }
+                  fingerprints.add(repeat(maxDownloadRetries, downloadRetryTime, new Callable<FingerprintRecord>() {
+                      @Override
+                      public FingerprintRecord call() throws Exception {
+                          return target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest));
+                      }
+                  }));
               }
           }
           return fingerprints;
       }
 
+    private FingerprintRecord repeat(int maxRetries, int waitTime, Callable<FingerprintRecord> func) throws InterruptedException, IOException {
+        int retryCount = 0;
 
+        while (true) {
+            try {
+                return func.call();
+            } catch (Exception e) {
+                retryCount++;
+                if(retryCount >= maxRetries){
+                    throw new IOException("Call fails: " + e + ":: Failed after " + retryCount + " tries.", e);
+                }
+                Thread.sleep(waitTime * 1000);
+            }
+        }
+    }
 
     private FilePath getFilePath(FilePath targetDir, boolean flatten, S3Artifact artifact) {
         if (flatten) {
