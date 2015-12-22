@@ -23,7 +23,7 @@ public abstract class S3Callable implements Serializable, FileCallable<Fingerpri
 
     private transient static volatile AmazonS3Client client;
     private transient static volatile TransferManager transferManager;
-    private transient static String oldClient;
+    private transient static String oldClientHash;
 
     public S3Callable(String accessKey, Secret secretKey, boolean useRole)
     {
@@ -34,18 +34,18 @@ public abstract class S3Callable implements Serializable, FileCallable<Fingerpri
 
     protected synchronized AmazonS3Client getClient()
     {
-        String newClient = getHash(accessKey, secretKey, useRole);
+        String newClientHash = getHash();
 
-        if (client == null || !newClient.equals(oldClient)) {
-            client = ClientHelper.createClient(accessKey, secretKey, useRole);
-            oldClient = newClient;
+        if (client == null || !newClientHash.equals(oldClientHash)) {
+            client = ClientHelper.createClient(accessKey, Secret.toString(secretKey), useRole);
+            oldClientHash = newClientHash;
         }
 
         return client;
     }
 
-    private String getHash(String access, Secret secret, boolean useRole) {
-        return access + (secret!=null ? secret.getPlainText() : "null") + Boolean.toString(useRole);
+    private String getHash() {
+        return accessKey + "|" + Secret.toString(secretKey) + "|" + Boolean.toString(useRole);
     }
 
     protected synchronized TransferManager getTransferManager()

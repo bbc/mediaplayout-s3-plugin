@@ -1,6 +1,7 @@
 package hudson.plugins.s3;
 
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.AmazonS3Client;
 import hudson.Extension;
 import hudson.FilePath;
 import hudson.Launcher;
@@ -17,7 +18,6 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONArray;
-import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
@@ -314,10 +314,10 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     return FormValidation.ok("Please, enter secretKey");
             }
 
-            S3Profile profile = new S3Profile(name, accessKey, secretKey, req.getParameter("proxyHost"), req.getParameter("proxyPort"), useRole, req.getParameter("maxUploadRetries"), req.getParameter("retryWaitTime"));
+            AmazonS3Client client = ClientHelper.createClient(accessKey, secretKey, useRole);
 
             try {
-                profile.check();
+                client.listBuckets();
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error("Can't connect to S3 service: " + e.getMessage());
