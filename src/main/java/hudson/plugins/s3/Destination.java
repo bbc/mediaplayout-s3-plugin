@@ -1,6 +1,5 @@
 package hudson.plugins.s3;
 
-import hudson.model.AbstractBuild;
 import hudson.model.Run;
 
 import java.io.Serializable;
@@ -18,8 +17,8 @@ import java.io.Serializable;
 public class Destination implements Serializable {
   private static final long serialVersionUID = 1L;
   public final String bucketName; 
-  public final String objectName; 
-  
+  public final String objectName;
+
   public Destination(final String userBucketName, final String fileName) {
     
     if (userBucketName == null || fileName == null) 

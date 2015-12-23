@@ -187,11 +187,14 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
 
                 List<FingerprintRecord> records = Lists.newArrayList();
 
-                int workspacePath = ws.getRemote().length() + 1;
+                final int workspacePath = ws.getRemote().length() + 1;
                 for (FilePath src : paths) {
+                    final String fileName = getFilename(src, entry.flatten, workspacePath);
+
                     log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region=" + selRegion + ", upload from slave=" + entry.uploadFromSlave + " managed="+ entry.managedArtifacts + " , server encryption "+entry.useServerSideEncryption);
-                    records.add(profile.upload(run, listener, bucket, src, workspacePath, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.flatten, entry.gzipFiles));
+                    records.add(profile.upload(run, bucket, src, fileName, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.gzipFiles));
                 }
+
                 if (entry.managedArtifacts) {
                     artifacts.addAll(records);
     
@@ -215,6 +218,17 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             e.printStackTrace(listener.error("Failed to upload files"));
             run.setResult(Result.UNSTABLE);
         }
+    }
+
+    private String getFilename(FilePath src, boolean flatten, int workspacePath) {
+        String fileName;
+        if (flatten) {
+            fileName = src.getName();
+        } else {
+            String relativeFileName = src.getRemote();
+            fileName = relativeFileName.substring(workspacePath);
+        }
+        return fileName;
     }
 
     // Listen for project renames and update property here if needed.
@@ -291,6 +305,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             return profiles.toArray(profileArray);
         }
 
+        @SuppressWarnings("unused")
         public FormValidation doLoginCheck(final StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
             String name = Util.fixNull(req.getParameter("name"));
             String accessKey = Util.fixNull(req.getParameter("accessKey"));

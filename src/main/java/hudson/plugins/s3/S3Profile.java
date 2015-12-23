@@ -9,8 +9,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-
-import hudson.model.TaskListener;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FilenameUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -43,9 +42,6 @@ public class S3Profile {
 
     private final boolean useRole;
     private final int signedUrlExpirySeconds;
-
-//    public S3Profile() {
-//    }
 
     @DataBoundConstructor
     public S3Profile(String name, String accessKey, String secretKey, boolean useRole, int signedUrlExpirySeconds, String maxUploadRetries, String uploadRetryTime, String maxDownloadRetries, String downloadRetryTime) {
@@ -120,33 +116,19 @@ public class S3Profile {
         return client;
     }
 
-    public void check() throws Exception {
-        getClient().listBuckets();
-    }
-
     public FingerprintRecord upload(Run<?, ?> run,
-                                    final TaskListener listener,
                                     final String bucketName,
                                     final FilePath filePath,
-                                    final int workspacePath,
+                                    final String fileName,
                                     final Map<String, String> userMetadata,
                                     final String storageClass,
                                     final String selregion,
                                     final boolean uploadFromSlave,
                                     final boolean managedArtifacts,
                                     final boolean useServerSideEncryption,
-                                    final boolean flatten,
                                     final boolean gzipFiles) throws IOException, InterruptedException {
         if (filePath.isDirectory()) {
             throw new IOException(filePath + " is a directory");
-        }
-
-        final String fileName;
-        if (flatten) {
-            fileName = filePath.getName();
-        } else {
-            String relativeFileName = filePath.getRemote();
-            fileName = relativeFileName.substring(workspacePath);
         }
 
         final Destination dest;
@@ -160,7 +142,7 @@ public class S3Profile {
             produced = false;
         }
 
-        return repeat(maxUploadRetries, uploadRetryTime, new Callable<FingerprintRecord>() {
+        return repeat(maxUploadRetries, uploadRetryTime, dest, new Callable<FingerprintRecord>() {
             public FingerprintRecord call() throws IOException, InterruptedException {
                 S3UploadCallable callable = new S3UploadCallable(produced, fileName, accessKey, secretKey, useRole,
                         bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption, gzipFiles);
@@ -174,7 +156,7 @@ public class S3Profile {
         });
     }
 
-    public List<String> list(Run build, String bucket, String expandedFilter) {
+    public List<String> list(Run build, String bucket) {
         AmazonS3Client s3client = getClient();
 
         String buildName = build.getDisplayName();
@@ -215,9 +197,9 @@ public class S3Profile {
               final FilePath target = getFilePath(targetDir, flatten, artifact);
 
               if (FileHelper.selected(includeFilter, excludeFilter, artifact.getName())) {
-                  fingerprints.add(repeat(maxDownloadRetries, downloadRetryTime, new Callable<FingerprintRecord>() {
+                  fingerprints.add(repeat(maxDownloadRetries, downloadRetryTime, dest, new Callable<FingerprintRecord>() {
                       @Override
-                      public FingerprintRecord call() throws Exception {
+                      public FingerprintRecord call() throws IOException, InterruptedException {
                           return target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest));
                       }
                   }));
@@ -226,7 +208,7 @@ public class S3Profile {
           return fingerprints;
       }
 
-    private FingerprintRecord repeat(int maxRetries, int waitTime, Callable<FingerprintRecord> func) throws InterruptedException, IOException {
+    private FingerprintRecord repeat(int maxRetries, int waitTime, Destination dest, Callable<FingerprintRecord> func) throws IOException, InterruptedException {
         int retryCount = 0;
 
         while (true) {
@@ -235,9 +217,9 @@ public class S3Profile {
             } catch (Exception e) {
                 retryCount++;
                 if(retryCount >= maxRetries){
-                    throw new IOException("Call fails: " + e + ":: Failed after " + retryCount + " tries.", e);
+                    throw new IOException("Call fails for " + dest + ": " + e + ":: Failed after " + retryCount + " tries.", e);
                 }
-                Thread.sleep(waitTime * 1000);
+                Thread.sleep(TimeUnit.SECONDS.toMillis(waitTime));
             }
         }
     }

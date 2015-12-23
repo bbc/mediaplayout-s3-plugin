@@ -9,7 +9,6 @@ import com.amazonaws.services.s3.transfer.Upload;
 import hudson.FilePath;
 import hudson.plugins.s3.Destination;
 import hudson.plugins.s3.FingerprintRecord;
-import hudson.plugins.s3.MetadataPair;
 import hudson.remoting.VirtualChannel;
 import hudson.util.Secret;
 import org.apache.commons.io.IOUtils;
@@ -18,23 +17,10 @@ import java.io.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 public class S3UploadCallable extends S3Callable {
-
-    private static Map<String, String> convertOldMeta(List<MetadataPair> userMeta) {
-        Map<String, String> result = new HashMap<String, String>();
-
-        for (MetadataPair pair : userMeta) {
-            result.put(pair.key, pair.value);
-        }
-
-        return result;
-    }
-
     private static final long serialVersionUID = 1L;
     private final String bucketName;
     private final Destination dest;
