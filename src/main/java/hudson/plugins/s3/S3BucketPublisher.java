@@ -212,7 +212,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             // don't bother adding actions if none of the artifacts are managed
             if (artifacts.size() > 0) {
                 run.getActions().add(new S3ArtifactsAction(run, profile, artifacts ));
-                run.getActions().add(new FingerprintAction(run,record));
+                run.getActions().add(new FingerprintAction(run, record));
             }
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));

@@ -75,7 +75,7 @@ import javax.annotation.Nonnull;
 public class S3CopyArtifact extends Builder implements SimpleBuildStep {
 
     private String projectName;
-    private final String includeFilter;
+    private final String filter;
     private final String excludeFilter;
     private final String target;
 
@@ -85,7 +85,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
     private static final BuildSelector DEFAULT_BUILD_SELECTOR = new StatusBuildSelector(true);
 
     @DataBoundConstructor
-    public S3CopyArtifact(String projectName, BuildSelector buildSelector, String includeFilter,
+    public S3CopyArtifact(String projectName, BuildSelector buildSelector, String filter,
                           String excludeFilter, String target, boolean flatten, boolean optional) {
         // Prevents both invalid values and access to artifacts of projects which this user cannot see.
         // If value is parameterized, it will be checked when build runs.
@@ -98,7 +98,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         }
         this.selector = buildSelector;
 
-        this.includeFilter = Util.fixNull(includeFilter).trim();
+        this.filter = Util.fixNull(filter).trim();
         this.excludeFilter = Util.fixNull(excludeFilter).trim();
         this.target = Util.fixNull(target).trim();
         this.flatten = flatten ? Boolean.TRUE : null;
@@ -113,8 +113,8 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         return selector;
     }
 
-    public String getIncludeFilter() {
-        return includeFilter;
+    public String getFilter() {
+        return filter;
     }
     public String getExcludeFilter() {
         return excludeFilter;
@@ -140,13 +140,10 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
     }
 
     @Override
-    /*public boolean perform(AbstractBuild<?,?> build, Launcher launcher, BuildListener listener)
-            throws InterruptedException {*/
-
     public void perform(@Nonnull Run<?, ?> dst, @Nonnull FilePath targetDir, @Nonnull Launcher launcher, @Nonnull TaskListener listener) throws InterruptedException, IOException {
         PrintStream console = listener.getLogger();
         String expandedProject = projectName;
-        String includeFilter = getIncludeFilter();
+        String includeFilter = getFilter();
         String excludeFilter = getExcludeFilter();
 
         try {
@@ -169,7 +166,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                 setResult(dst, false);
                 return;
             }
-            Run src = selector.getBuild(job.job, env, job.filter, dst);
+            Run src = getBuildSelector().getBuild(job.job, env, job.filter, dst);
             if (src == null) {
                 console.println(Messages.CopyArtifact_MissingBuild(expandedProject));
                 setResult(dst,  isOptional());  // Fail build unless copy is optional
