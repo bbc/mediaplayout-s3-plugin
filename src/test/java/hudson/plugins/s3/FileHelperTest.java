@@ -51,10 +51,24 @@ public class FileHelperTest {
 
     @Test
     public void testSelectedWithEmptyIncludeFilter() throws Exception {
-        String includeFilter = "*";
+        String includeFilter = "";
+        String excludeFilter = "b.txt";
+
+        assertFalse(FileHelper.selected(includeFilter, excludeFilter, "a.txt"));
+        assertFalse(FileHelper.selected(includeFilter, excludeFilter, "b.txt"));
+    }
+
+    @Test
+    public void testSelectedWithNullIncludeFilter() throws Exception {
         String excludeFilter = "";
 
-        assertTrue(FileHelper.selected(includeFilter, excludeFilter, "a.txt"));
-        assertTrue(FileHelper.selected(includeFilter, excludeFilter, "b.txt"));
+        assertFalse(FileHelper.selected(null, excludeFilter, "a.txt"));
+    }
+
+    @Test
+    public void testSelectedWithNullExcludeFilter() throws Exception {
+        String includeFilter = "a.txt";
+
+        assertTrue(FileHelper.selected(includeFilter, null, "a.txt"));
     }
 }
