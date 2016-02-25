@@ -31,12 +31,9 @@ public class S3DownloadCallable extends S3Callable
         download.waitForCompletion();
 
         final String md5;
-        final InputStream inputStream = new FileInputStream(file.getAbsolutePath());
 
-        try {
+        try(InputStream inputStream = new FileInputStream(file.getAbsolutePath())) {
             md5 = getMD5(inputStream);
-        } finally {
-            inputStream.close();
         }
 
         return new FingerprintRecord(true, dest.bucketName, file.getName(), md5);

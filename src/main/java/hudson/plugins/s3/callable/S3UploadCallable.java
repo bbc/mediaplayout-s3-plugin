@@ -94,37 +94,40 @@ public class S3UploadCallable extends S3Callable {
         setRegion();
 
         ObjectMetadata metadata = buildMetadata(file);
-
-        InputStream inputStream = file.read();
-
         File localFile = null;
+        final Upload upload;
 
-        if (gzipFiles) {
-            localFile = File.createTempFile("s3plugin", ".bin");
+        try (InputStream inputStream = file.read()) {
+            if (gzipFiles) {
+                localFile = File.createTempFile("s3plugin", ".bin");
 
-            OutputStream outputStream = new FileOutputStream(localFile);
+                try (OutputStream outputStream = new FileOutputStream(localFile)) {
+                    try (OutputStream gzipStream = new GZIPOutputStream(outputStream, true)) {
+                        IOUtils.copy(inputStream, gzipStream);
+                        gzipStream.flush();
+                    }
+                }
 
-            outputStream = new GZIPOutputStream(outputStream, true);
-
-            IOUtils.copy(inputStream, outputStream);
-            outputStream.flush();
-            outputStream.close();
-
-            inputStream = new FileInputStream(localFile);
-            metadata.setContentEncoding("gzip");
-            metadata.setContentLength(localFile.length());
+                try (InputStream gzipedStream = new FileInputStream(localFile)) {
+                    metadata.setContentEncoding("gzip");
+                    metadata.setContentLength(localFile.length());
+                    upload = getTransferManager().upload(dest.bucketName, dest.objectName, gzipedStream, metadata);
+                }
+            } else {
+                upload = getTransferManager().upload(dest.bucketName, dest.objectName, inputStream, metadata);
+            }
+            upload.waitForCompletion();
         }
 
-        Upload upload = getTransferManager().upload(dest.bucketName, dest.objectName, inputStream, metadata);
-
-        upload.waitForCompletion();
-
-        String md5;
+        final String md5;
         if (gzipFiles) {
-            md5 = getMD5(new FileInputStream(localFile));
-        }
-        else{
-            md5 = getMD5(file.read());
+            try(InputStream md5Stream = new FileInputStream(localFile)) {
+                md5 = getMD5(md5Stream);
+            }
+        } else {
+            try(InputStream md5Stream = file.read()) {
+                md5 = getMD5(md5Stream);
+            }
         }
 
         if (localFile != null) {
