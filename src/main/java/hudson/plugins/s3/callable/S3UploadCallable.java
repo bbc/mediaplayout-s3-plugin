@@ -5,10 +5,12 @@ import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.internal.Mimetypes;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import hudson.FilePath;
 import hudson.plugins.s3.Destination;
 import hudson.plugins.s3.FingerprintRecord;
+import hudson.plugins.s3.MD5;
 import hudson.remoting.VirtualChannel;
 import hudson.util.Secret;
 import org.apache.commons.io.IOUtils;
@@ -26,7 +28,6 @@ public class S3UploadCallable extends S3Callable {
     private final Destination dest;
     private final String storageClass;
     private final Map<String, String> userMetadata;
-    private final String selregion;
     private final boolean produced;
     private final boolean useServerSideEncryption;
     private final boolean gzipFiles;
@@ -36,12 +37,11 @@ public class S3UploadCallable extends S3Callable {
     public S3UploadCallable(boolean produced, String destFilename, String accessKey, Secret secretKey, boolean useRole, String bucketName,
                             Destination dest, Map<String, String> userMetadata, String storageClass, String selregion,
                             boolean useServerSideEncryption, boolean gzipFiles) {
-        super(accessKey, secretKey, useRole);
+        super(accessKey, secretKey, useRole, selregion);
         this.bucketName = bucketName;
         this.dest = dest;
         this.storageClass = storageClass;
         this.userMetadata = userMetadata;
-        this.selregion = selregion;
         this.produced = produced;
         this.destFilename = destFilename;
         this.useServerSideEncryption = useServerSideEncryption;
@@ -91,7 +91,7 @@ public class S3UploadCallable extends S3Callable {
      * Stream from slave to master, then upload from master
      */
     public FingerprintRecord invoke(FilePath file) throws IOException, InterruptedException {
-        setRegion();
+        final TransferManager transferManager = getTransferManager();
 
         ObjectMetadata metadata = buildMetadata(file);
         File localFile = null;
@@ -111,41 +111,25 @@ public class S3UploadCallable extends S3Callable {
                 try (InputStream gzipedStream = new FileInputStream(localFile)) {
                     metadata.setContentEncoding("gzip");
                     metadata.setContentLength(localFile.length());
-                    upload = getTransferManager().upload(dest.bucketName, dest.objectName, gzipedStream, metadata);
+                    upload = transferManager.upload(dest.bucketName, dest.objectName, gzipedStream, metadata);
                 }
             } else {
-                upload = getTransferManager().upload(dest.bucketName, dest.objectName, inputStream, metadata);
+                upload = transferManager.upload(dest.bucketName, dest.objectName, inputStream, metadata);
             }
             upload.waitForCompletion();
         }
 
         final String md5;
         if (gzipFiles) {
-            try(InputStream md5Stream = new FileInputStream(localFile)) {
-                md5 = getMD5(md5Stream);
-            }
+            md5 = MD5.generateFromFile(localFile);
         } else {
-            try(InputStream md5Stream = file.read()) {
-                md5 = getMD5(md5Stream);
-            }
+            md5 = MD5.generateFromFile(file);
         }
 
         if (localFile != null) {
             localFile.delete();
         }
 
-        return new FingerprintRecord(produced, bucketName, destFilename, md5);
-    }
-
-    private void setRegion() {
-        // In 0.7, selregion comes from Regions#name
-        Region region = RegionUtils.getRegion(selregion);
-
-        // In 0.6, selregion comes from Regions#valueOf
-        if (region == null) {
-            region = RegionUtils.getRegion(Regions.valueOf(selregion).getName());
-        }
-
-        getClient().setRegion(region);
+        return generateFingerprint(produced, bucketName, destFilename, md5);
     }
 }

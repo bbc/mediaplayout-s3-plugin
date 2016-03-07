@@ -7,10 +7,12 @@ public final class S3Artifact implements Serializable {
 
     final private String bucket;
     final private String name;
+    final private String region;
 
-    public S3Artifact(String bucket, String name) {
+    public S3Artifact(String region, String bucket, String name) {
         this.bucket = bucket;
         this.name = name;
+        this.region = region;
     }
 
     public String getBucket() {
@@ -19,5 +21,9 @@ public final class S3Artifact implements Serializable {
 
     public String getName() {
         return name;
+    }
+
+    public String getRegion() {
+        return region;
     }
 }

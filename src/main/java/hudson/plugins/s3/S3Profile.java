@@ -191,8 +191,8 @@ public class S3Profile {
                                                  final FilePath targetDir,
                                                  final boolean flatten) throws IOException, InterruptedException {
           List<FingerprintRecord> fingerprints = Lists.newArrayList();
-          for(FingerprintRecord record : artifacts) {
-              S3Artifact artifact = record.artifact;
+          for(final FingerprintRecord record : artifacts) {
+              final S3Artifact artifact = record.getArtifact();
               final Destination dest = Destination.newFromRun(build, artifact);
               final FilePath target = getFilePath(targetDir, flatten, artifact);
 
@@ -200,7 +200,7 @@ public class S3Profile {
                   fingerprints.add(repeat(maxDownloadRetries, downloadRetryTime, dest, new Callable<FingerprintRecord>() {
                       @Override
                       public FingerprintRecord call() throws IOException, InterruptedException {
-                          return target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest));
+                          return target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest, artifact.getRegion()));
                       }
                   }));
               }
@@ -208,7 +208,7 @@ public class S3Profile {
           return fingerprints;
       }
 
-    private FingerprintRecord repeat(int maxRetries, int waitTime, Destination dest, Callable<FingerprintRecord> func) throws IOException, InterruptedException {
+    private <T> T repeat(int maxRetries, int waitTime, Destination dest, Callable<T> func) throws IOException, InterruptedException {
         int retryCount = 0;
 
         while (true) {
@@ -239,7 +239,7 @@ public class S3Profile {
        * @param record
        */
       public void delete(Run run, FingerprintRecord record) {
-          Destination dest = Destination.newFromRun(run, record.artifact);
+          Destination dest = Destination.newFromRun(run, record.getArtifact());
           DeleteObjectRequest req = new DeleteObjectRequest(dest.bucketName, dest.objectName);
           getClient().deleteObject(req);
       }
@@ -254,7 +254,7 @@ public class S3Profile {
        * access S3.
        */
       public String getDownloadURL(Run run, FingerprintRecord record) {
-          Destination dest = Destination.newFromRun(run, record.artifact);
+          Destination dest = Destination.newFromRun(run, record.getArtifact());
           GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(dest.bucketName, dest.objectName);
           request.setExpiration(new Date(System.currentTimeMillis() + this.signedUrlExpirySeconds*1000));
           ResponseHeaderOverrides headers = new ResponseHeaderOverrides();

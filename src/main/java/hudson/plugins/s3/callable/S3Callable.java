@@ -1,7 +1,6 @@
 package hudson.plugins.s3.callable;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.FilePath.FileCallable;
 import hudson.plugins.s3.ClientHelper;
@@ -10,8 +9,8 @@ import hudson.util.Secret;
 import org.jenkinsci.remoting.RoleChecker;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Serializable;
+import java.util.HashMap;
 
 public abstract class S3Callable implements Serializable, FileCallable<FingerprintRecord>
 {
@@ -20,56 +19,33 @@ public abstract class S3Callable implements Serializable, FileCallable<Fingerpri
     private final String accessKey;
     private final Secret secretKey;
     private final boolean useRole;
+    private final String region;
 
-    private transient static volatile AmazonS3Client client;
-    private transient static volatile TransferManager transferManager;
-    private transient static String oldClientHash;
+    private transient static HashMap<String, TransferManager> transferManagers = new HashMap<>();
 
-    public S3Callable(String accessKey, Secret secretKey, boolean useRole)
+    public S3Callable(String accessKey, Secret secretKey, boolean useRole, String region)
     {
         this.accessKey = accessKey;
         this.secretKey = secretKey;
         this.useRole = useRole;
-    }
-
-    protected synchronized AmazonS3Client getClient()
-    {
-        String newClientHash = getHash();
-
-        if (client == null || !newClientHash.equals(oldClientHash)) {
-            client = ClientHelper.createClient(accessKey, Secret.toString(secretKey), useRole);
-            oldClientHash = newClientHash;
-        }
-
-        return client;
-    }
-
-    private String getHash() {
-        return accessKey + "|" + Secret.toString(secretKey) + "|" + Boolean.toString(useRole);
+        this.region = region;
     }
 
     protected synchronized TransferManager getTransferManager()
     {
-        if (transferManager == null) {
-            transferManager = new TransferManager(getClient());
-        }
-        else {
-            AmazonS3 oldClient = transferManager.getAmazonS3Client();
-            AmazonS3 newClient = getClient();
-            if (!newClient.equals(oldClient)) {
-                transferManager.shutdownNow(true);
-                transferManager = new TransferManager(getClient());
-            }
+        if (transferManagers.get(region) == null) {
+            AmazonS3 client = ClientHelper.createClient(accessKey, Secret.toString(secretKey), useRole, region);
+            transferManagers.put(region, new TransferManager(client));
         }
 
-        return transferManager;
-    }
-
-    protected String getMD5(InputStream inputStream) throws IOException {
-        return org.apache.commons.codec.digest.DigestUtils.md5Hex(inputStream);
+        return transferManagers.get(region);
     }
 
     public void checkRoles(RoleChecker roleChecker) throws SecurityException {
 
+    }
+
+    public FingerprintRecord generateFingerprint(boolean produced, String bucket, String name, String md5sum) throws IOException {
+        return new FingerprintRecord(produced, bucket, name, region, md5sum);
     }
 }

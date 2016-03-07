@@ -4,22 +4,21 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.transfer.Download;
 import hudson.plugins.s3.Destination;
 import hudson.plugins.s3.FingerprintRecord;
+import hudson.plugins.s3.MD5;
 import hudson.remoting.VirtualChannel;
 import hudson.util.Secret;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 
 public class S3DownloadCallable extends S3Callable
 {
     private static final long serialVersionUID = 1L;
     final private Destination dest;
     
-    public S3DownloadCallable(String accessKey, Secret secretKey, boolean useRole, Destination dest)
+    public S3DownloadCallable(String accessKey, Secret secretKey, boolean useRole, Destination dest, String region)
     {
-        super(accessKey, secretKey, useRole);
+        super(accessKey, secretKey, useRole, region);
         this.dest = dest;
     }
 
@@ -30,13 +29,9 @@ public class S3DownloadCallable extends S3Callable
 
         download.waitForCompletion();
 
-        final String md5;
+        final String md5 = MD5.generateFromFile(file);
 
-        try(InputStream inputStream = new FileInputStream(file.getAbsolutePath())) {
-            md5 = getMD5(inputStream);
-        }
-
-        return new FingerprintRecord(true, dest.bucketName, file.getName(), md5);
+        return generateFingerprint(true, dest.bucketName, file.getName(), md5);
     }
 
 }
