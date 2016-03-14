@@ -2,17 +2,17 @@ package hudson.plugins.s3;
 
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3Client;
-import hudson.Extension;
-import hudson.FilePath;
-import hudson.Launcher;
-import hudson.Util;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import hudson.*;
 import hudson.model.*;
 import hudson.model.listeners.RunListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
+import hudson.tasks.Fingerprinter.FingerprintAction;
 import hudson.tasks.Publisher;
 import hudson.tasks.Recorder;
-import hudson.tasks.Fingerprinter.FingerprintAction;
 import hudson.util.CopyOnWriteList;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
@@ -22,10 +22,6 @@ import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import javax.annotation.Nonnull;
 import javax.servlet.ServletException;
@@ -124,7 +120,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             throws InterruptedException, IOException {
 
         final boolean buildFailed = run.getResult() == Result.FAILURE;
-        
+
         S3Profile profile = getProfile();
         if (profile == null) {
             log(listener.getLogger(), "No S3 profile is configured.");
@@ -211,8 +207,8 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
             }
             // don't bother adding actions if none of the artifacts are managed
             if (artifacts.size() > 0) {
-                run.getActions().add(new S3ArtifactsAction(run, profile, artifacts ));
-                run.getActions().add(new FingerprintAction(run, record));
+                run.addAction(new S3ArtifactsAction(run, profile, artifacts ));
+                run.addAction(new FingerprintAction(run, record));
             }
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));

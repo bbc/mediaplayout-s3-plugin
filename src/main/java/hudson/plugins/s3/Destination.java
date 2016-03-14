@@ -46,15 +46,23 @@ public class Destination implements Serializable {
   }
   
 
-  public static Destination newFromRun(Run run, String bucketName, String fileName)
+  public static Destination newFromRun(Run run, String bucketName, String fileName, boolean enableFullpath)
   {
-    String projectName = run.getParent().getName();
+    final String projectName;
+
+    if (enableFullpath) {
+      projectName = run.getParent().getFullName();
+    }
+    else {
+      projectName = run.getParent().getName();
+    }
+
     int buildID = run.getNumber();
     return new Destination(bucketName, "jobs/" + projectName + "/" + buildID + "/" + fileName);
   }
 
   public static Destination newFromRun(Run run, S3Artifact artifact) 
   {
-    return newFromRun(run, artifact.getBucket(), artifact.getName());
+    return newFromRun(run, artifact.getBucket(), artifact.getName(), artifact.useFullProjectName());
   }
 }

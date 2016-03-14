@@ -134,7 +134,7 @@ public class S3Profile {
         final Destination dest;
         final boolean produced;
         if (managedArtifacts) {
-            dest = Destination.newFromRun(run, bucketName, fileName);
+            dest = Destination.newFromRun(run, bucketName, fileName, true);
             produced = run.getTimeInMillis() <= filePath.lastModified()+2000;
         }
         else {

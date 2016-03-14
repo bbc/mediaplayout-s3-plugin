@@ -48,38 +48,6 @@ public class S3UploadCallable extends S3Callable {
         this.gzipFiles = gzipFiles;
     }
 
-    public ObjectMetadata buildMetadata(FilePath filePath) throws IOException, InterruptedException {
-        ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentType(Mimetypes.getInstance().getMimetype(filePath.getName()));
-        metadata.setContentLength(filePath.length());
-        metadata.setLastModified(new Date(filePath.lastModified()));
-        if (storageClass != null && !storageClass.isEmpty()) {
-            metadata.setHeader("x-amz-storage-class", storageClass);
-        }
-        if (useServerSideEncryption) {
-            metadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
-        }
-
-        for (Map.Entry<String, String> entry : userMetadata.entrySet()) {
-            String key = entry.getKey().toLowerCase();
-            if (key.equals("cache-control")) {
-                metadata.setCacheControl(entry.getValue());
-            } else if (key.equals("expires")) {
-                try {
-                    Date expires = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z").parse(entry.getValue());
-                    metadata.setHttpExpiresDate(expires);
-                } catch (ParseException e) {
-                    metadata.addUserMetadata(entry.getKey(), entry.getValue());
-                }
-            } else if (key.equals("content-encoding")) {
-                metadata.setContentEncoding(entry.getValue());
-            } else {
-                metadata.addUserMetadata(entry.getKey(), entry.getValue());
-            }
-        }
-        return metadata;
-    }
-
     /**
      * Upload from slave directly
      */
@@ -131,5 +99,37 @@ public class S3UploadCallable extends S3Callable {
         }
 
         return generateFingerprint(produced, bucketName, destFilename, md5);
+    }
+
+    private ObjectMetadata buildMetadata(FilePath filePath) throws IOException, InterruptedException {
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentType(Mimetypes.getInstance().getMimetype(filePath.getName()));
+        metadata.setContentLength(filePath.length());
+        metadata.setLastModified(new Date(filePath.lastModified()));
+        if (storageClass != null && !storageClass.isEmpty()) {
+            metadata.setHeader("x-amz-storage-class", storageClass);
+        }
+        if (useServerSideEncryption) {
+            metadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+        }
+
+        for (Map.Entry<String, String> entry : userMetadata.entrySet()) {
+            String key = entry.getKey().toLowerCase();
+            if (key.equals("cache-control")) {
+                metadata.setCacheControl(entry.getValue());
+            } else if (key.equals("expires")) {
+                try {
+                    Date expires = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z").parse(entry.getValue());
+                    metadata.setHttpExpiresDate(expires);
+                } catch (ParseException e) {
+                    metadata.addUserMetadata(entry.getKey(), entry.getValue());
+                }
+            } else if (key.equals("content-encoding")) {
+                metadata.setContentEncoding(entry.getValue());
+            } else {
+                metadata.addUserMetadata(entry.getKey(), entry.getValue());
+            }
+        }
+        return metadata;
     }
 }
