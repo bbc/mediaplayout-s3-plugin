@@ -5,26 +5,25 @@ import java.util.List;
 
 import javax.servlet.ServletException;
 
+import jenkins.model.RunAction2;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
-import hudson.model.RunAction;
-import hudson.model.AbstractBuild;
 import hudson.model.Run;
 
-public class S3ArtifactsAction implements RunAction {
-  private final AbstractBuild build;
+public class S3ArtifactsAction implements RunAction2 {
+  private final Run build; // Compatibility for old versions
   private final String profile;
   private final List<FingerprintRecord> artifacts;
 
-  public S3ArtifactsAction(AbstractBuild<?,?> build, S3Profile profile, List<FingerprintRecord> artifacts) {
-      this.build = build;
+  public S3ArtifactsAction(Run<?,?> run, S3Profile profile, List<FingerprintRecord> artifacts) {
+      this.build = run;
       this.profile = profile.getName();
       this.artifacts = artifacts;
-      onLoad();   // make compact
+      onLoad(run);   // make compact
   }
 
-  public AbstractBuild<?,?> getBuild() {
+  public Run<?,?> getBuild() {
       return build;
   }
 
@@ -40,13 +39,11 @@ public class S3ArtifactsAction implements RunAction {
     return "s3";
   }
 
-  public void onLoad() {
+  @Override
+  public void onLoad(Run<?, ?> r) {
   }
 
   public void onAttached(Run r) {
-  }
-
-  public void onBuildComplete() {
   }
 
   public String getProfile() {
@@ -67,7 +64,7 @@ public class S3ArtifactsAction implements RunAction {
       // skip the leading /
       String artifact = restOfPath.substring(1);
       for (FingerprintRecord record : getArtifacts()) {
-          if (record.artifact.getName().equals(artifact)) {
+          if (record.getArtifact().getName().equals(artifact)) {
               S3Profile s3 = S3BucketPublisher.getProfile(profile);
               String url = s3.getDownloadURL(build, record);
               response.sendRedirect2(url);
