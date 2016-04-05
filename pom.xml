@@ -20,33 +20,33 @@
 
     <artifactId>s3</artifactId>
     <packaging>hpi</packaging>
-    <version>0.9</version>
+    <version>0.9-SNAPSHOT</version>
     <name>Jenkins S3 publisher plugin</name>
     <url>https://wiki.jenkins-ci.org/display/JENKINS/S3+Plugin</url>
 
     <developers>
-        <developer> 
-            <id>dougm</id> 
-            <name>Doug MacEachern</name> 
+        <developer>
+            <id>dougm</id>
+            <name>Doug MacEachern</name>
         </developer>
-        <developer> 
-            <id>d6y</id> 
-            <name>Richard Dallaway</name> 
+        <developer>
+            <id>d6y</id>
+            <name>Richard Dallaway</name>
         </developer>
-        <developer> 
-            <id>longlho</id> 
-            <name>Long Ho</name> 
+        <developer>
+            <id>longlho</id>
+            <name>Long Ho</name>
         </developer>
-        <developer> 
-            <id>mikewatt</id> 
-            <name>Michael Watt</name> 
+        <developer>
+            <id>mikewatt</id>
+            <name>Michael Watt</name>
         </developer>
-        <developer> 
-            <id>dmbeer</id> 
+        <developer>
+            <id>dmbeer</id>
             <name>David Beer</name>
         </developer>
-        <developer> 
-            <id>mattias</id> 
+        <developer>
+            <id>mattias</id>
             <name>Mattias Appelgren</name>
         </developer>
     </developers>
@@ -55,14 +55,14 @@
         <connection>scm:git:ssh://github.com/jenkinsci/s3-plugin.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/jenkinsci/s3-plugin.git</developerConnection>
         <url>https://github.com/jenkinsci/s3-plugin</url>
-      <tag>s3-0.9</tag>
-  </scm>
+        <tag>HEAD</tag>
+    </scm>
 
     <dependencies>
         <dependency>
-          <groupId>org.jenkins-ci.plugins</groupId>
-          <artifactId>aws-java-sdk</artifactId>
-          <version>1.10.26</version>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>aws-java-sdk</artifactId>
+            <version>1.10.26</version>
         </dependency>
         <dependency>
             <groupId>net.java.dev.jna</groupId>
@@ -102,12 +102,12 @@
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.4</version>
-        </dependency>        
+        </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpcore</artifactId>
             <version>4.4</version>
-        </dependency>        
+        </dependency>
     </dependencies>
 
     <repositories>
