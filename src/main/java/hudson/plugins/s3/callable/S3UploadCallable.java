@@ -1,13 +1,11 @@
 package hudson.plugins.s3.callable;
 
-import com.amazonaws.regions.Region;
-import com.amazonaws.regions.RegionUtils;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.internal.Mimetypes;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import hudson.FilePath;
+import hudson.ProxyConfiguration;
 import hudson.plugins.s3.Destination;
 import hudson.plugins.s3.FingerprintRecord;
 import hudson.plugins.s3.MD5;
@@ -36,8 +34,8 @@ public class S3UploadCallable extends S3Callable {
 
     public S3UploadCallable(boolean produced, String destFilename, String accessKey, Secret secretKey, boolean useRole, String bucketName,
                             Destination dest, Map<String, String> userMetadata, String storageClass, String selregion,
-                            boolean useServerSideEncryption, boolean gzipFiles) {
-        super(accessKey, secretKey, useRole, selregion);
+                            boolean useServerSideEncryption, boolean gzipFiles, ProxyConfiguration proxy) {
+        super(accessKey, secretKey, useRole, selregion, proxy);
         this.bucketName = bucketName;
         this.dest = dest;
         this.storageClass = storageClass;
@@ -51,6 +49,7 @@ public class S3UploadCallable extends S3Callable {
     /**
      * Upload from slave directly
      */
+    @Override
     public FingerprintRecord invoke(File file, VirtualChannel channel) throws IOException, InterruptedException {
         return invoke(new FilePath(file));
     }
@@ -61,11 +60,11 @@ public class S3UploadCallable extends S3Callable {
     public FingerprintRecord invoke(FilePath file) throws IOException, InterruptedException {
         final TransferManager transferManager = getTransferManager();
 
-        ObjectMetadata metadata = buildMetadata(file);
+        final ObjectMetadata metadata = buildMetadata(file);
         File localFile = null;
-        final Upload upload;
 
         try (InputStream inputStream = file.read()) {
+            final Upload upload;
             if (gzipFiles) {
                 localFile = File.createTempFile("s3plugin", ".bin");
 
@@ -102,7 +101,7 @@ public class S3UploadCallable extends S3Callable {
     }
 
     private ObjectMetadata buildMetadata(FilePath filePath) throws IOException, InterruptedException {
-        ObjectMetadata metadata = new ObjectMetadata();
+        final ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentType(Mimetypes.getInstance().getMimetype(filePath.getName()));
         metadata.setContentLength(filePath.length());
         metadata.setLastModified(new Date(filePath.lastModified()));
@@ -114,20 +113,25 @@ public class S3UploadCallable extends S3Callable {
         }
 
         for (Map.Entry<String, String> entry : userMetadata.entrySet()) {
-            String key = entry.getKey().toLowerCase();
-            if (key.equals("cache-control")) {
-                metadata.setCacheControl(entry.getValue());
-            } else if (key.equals("expires")) {
-                try {
-                    Date expires = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z").parse(entry.getValue());
-                    metadata.setHttpExpiresDate(expires);
-                } catch (ParseException e) {
+            final String key = entry.getKey().toLowerCase();
+            switch (key) {
+                case "cache-control":
+                    metadata.setCacheControl(entry.getValue());
+                    break;
+                case "expires":
+                    try {
+                        final Date expires = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z").parse(entry.getValue());
+                        metadata.setHttpExpiresDate(expires);
+                    } catch (ParseException e) {
+                        metadata.addUserMetadata(entry.getKey(), entry.getValue());
+                    }
+                    break;
+                case "content-encoding":
+                    metadata.setContentEncoding(entry.getValue());
+                    break;
+                default:
                     metadata.addUserMetadata(entry.getKey(), entry.getValue());
-                }
-            } else if (key.equals("content-encoding")) {
-                metadata.setContentEncoding(entry.getValue());
-            } else {
-                metadata.addUserMetadata(entry.getKey(), entry.getValue());
+                    break;
             }
         }
         return metadata;

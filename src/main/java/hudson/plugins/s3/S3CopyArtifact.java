@@ -80,7 +80,8 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
     private final String target;
 
     private /*almost final*/ BuildSelector selector;
-    private final Boolean flatten, optional;
+    private final Boolean flatten;
+    private final Boolean optional;
 
     private static final BuildSelector DEFAULT_BUILD_SELECTOR = new StatusBuildSelector(true);
 
@@ -141,15 +142,15 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
 
     @Override
     public void perform(@Nonnull Run<?, ?> dst, @Nonnull FilePath targetDir, @Nonnull Launcher launcher, @Nonnull TaskListener listener) throws InterruptedException, IOException {
-        PrintStream console = listener.getLogger();
+        final PrintStream console = listener.getLogger();
         String expandedProject = projectName;
         String includeFilter = getFilter();
         String excludeFilter = getExcludeFilter();
 
         try {
-            EnvVars env = dst.getEnvironment(listener);
+            final EnvVars env = dst.getEnvironment(listener);
             expandedProject = env.expand(projectName);
-            JobResolver job = new JobResolver(expandedProject);
+            final JobResolver job = new JobResolver(expandedProject);
             if (job.job != null && !expandedProject.equals(projectName)
                 // If projectName is parameterized, need to do permission check on source project.
                 // Would like to check if user who started build has permission, but unable to get
@@ -166,7 +167,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                 setResult(dst, false);
                 return;
             }
-            Run src = getBuildSelector().getBuild(job.job, env, job.filter, dst);
+            final Run src = getBuildSelector().getBuild(job.job, env, job.filter, dst);
             if (src == null) {
                 console.println(Messages.CopyArtifact_MissingBuild(expandedProject));
                 setResult(dst,  isOptional());  // Fail build unless copy is optional
@@ -174,22 +175,22 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
             }
 
             if (!targetDir.exists()) {
-                console.println(Messages.CopyArtifact_MissingWorkspace()); // (see JENKINS-3330)
+                console.println(Messages.CopyArtifact_MissingSrcWorkspace()); // (see JENKINS-3330)
                 setResult(dst, isOptional());  // Fail build unless copy is optional
                 return;
             }
 
             // Add info about the selected build into the environment
-            EnvAction envData = dst.getAction(EnvAction.class);
+            final EnvAction envData = dst.getAction(EnvAction.class);
             if (envData != null) {
                 envData.add(expandedProject, src.getNumber());
             }
 
-            if (target.length() > 0)
+            if (!target.isEmpty())
                 targetDir = new FilePath(targetDir, env.expand(target));
 
             includeFilter = env.expand(includeFilter);
-            if (includeFilter.trim().length() == 0)
+            if (includeFilter.trim().isEmpty())
                 includeFilter = "**";
 
             excludeFilter = env.expand(excludeFilter);
@@ -219,13 +220,13 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
     private boolean perform(Run src, Run<?,?> dst, String includeFilter, String excludeFilter, FilePath targetDir, PrintStream console)
             throws IOException, InterruptedException {
 
-        S3ArtifactsAction action = src.getAction(S3ArtifactsAction.class);
+        final S3ArtifactsAction action = src.getAction(S3ArtifactsAction.class);
         if (action == null) {
-          console.println("Build " + src.getDisplayName() + "[" + src.number + "] doesn't have any S3 artifacts uploaded");
+          console.println("Build " + src.getDisplayName() + '[' + src.number + "] doesn't have any S3 artifacts uploaded");
           return false;
         }
 
-        S3Profile profile = S3BucketPublisher.getProfile(action.getProfile());
+        final S3Profile profile = S3BucketPublisher.getProfile(action.getProfile());
 
         if (profile == null) {
             console.println("Can't find S3 profile");
@@ -233,13 +234,13 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         }
 
         targetDir.mkdirs();
-        List<FingerprintRecord> records = profile.downloadAll(src, action.getArtifacts(), includeFilter, excludeFilter, targetDir, isFlatten());
+        final List<FingerprintRecord> records = profile.downloadAll(src, action.getArtifacts(), includeFilter, excludeFilter, targetDir, isFlatten());
 
-        Map<String, String> fingerprints = Maps.newHashMap();
+        final Map<String, String> fingerprints = Maps.newHashMap();
         for(FingerprintRecord record : records) {
-            FingerprintMap map = Jenkins.getInstance().getFingerprintMap();
+            final FingerprintMap map = Jenkins.getInstance().getFingerprintMap();
 
-            Fingerprint f = map.getOrCreate(src, record.getName(), record.getFingerprint());
+            final Fingerprint f = map.getOrCreate(src, record.getName(), record.getFingerprint());
             f.addFor(src);
             f.addFor(dst);
             fingerprints.put(record.getName(), record.getFingerprint());
@@ -249,7 +250,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
             if (r == null)
                 continue;
 
-            FingerprintAction fa = r.getAction(FingerprintAction.class);
+            final FingerprintAction fa = r.getAction(FingerprintAction.class);
             if (fa != null) fa.add(fingerprints);
             else            r.getActions().add(new FingerprintAction(r, fingerprints));
         }
@@ -257,7 +258,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         console.println(MessageFormat.format("Copied {0} {0,choice,0#artifacts|1#artifact|1<artifacts} from \"{1}\" build number {2} stored in S3", fingerprints.size(), HyperlinkNote.encodeTo('/'+ src.getParent().getUrl(), src.getParent().getFullDisplayName()),
                 HyperlinkNote.encodeTo('/'+src.getUrl(), Integer.toString(src.getNumber()))));
         // Fail build if 0 files copied unless copy is optional
-        return fingerprints.size() > 0 || isOptional();
+        return !fingerprints.isEmpty() || isOptional();
     }
 
     // Find the job from the given name; usually just a Hudson.getItemByFullName lookup,
@@ -267,15 +268,15 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         BuildFilter filter = new BuildFilter();
 
         JobResolver(String projectName) {
-            Jenkins jenkins = Hudson.getActiveInstance();
+            final Jenkins jenkins = Hudson.getActiveInstance();
             job = jenkins.getItemByFullName(projectName, Job.class);
             if (job == null) {
                 // Check for parameterized job with filter (see help file)
-                int i = projectName.indexOf('/');
+                final int i = projectName.indexOf('/');
                 if (i > 0) {
-                    Job<?,?> candidate = jenkins.getItemByFullName(projectName.substring(0, i), Job.class);
+                    final Job<?,?> candidate = jenkins.getItemByFullName(projectName.substring(0, i), Job.class);
                     if (candidate != null) {
-                        ParametersBuildFilter pFilter = new ParametersBuildFilter(projectName.substring(i + 1));
+                        final ParametersBuildFilter pFilter = new ParametersBuildFilter(projectName.substring(i + 1));
                         if (pFilter.isValid(candidate)) {
                             job = candidate;
                             filter = pFilter;
@@ -293,8 +294,8 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                 @AncestorInPath AccessControlled anc, @QueryParameter String value) {
             // Require CONFIGURE permission on this project
             if (!anc.hasPermission(Item.CONFIGURE)) return FormValidation.ok();
-            FormValidation result;
-            Item item = new JobResolver(value).job;
+            final FormValidation result;
+            final Item item = new JobResolver(value).job;
             if (item != null) {
                 
                 result = item instanceof MavenModuleSet
@@ -310,10 +311,12 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
             return result;
         }
 
+        @Override
         public boolean isApplicable(Class<? extends AbstractProject> clazz) {
             return true;
         }
 
+        @Override
         public String getDisplayName() {
             return "S3 Copy Artifact";
         }
@@ -345,13 +348,13 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                     Logger.getLogger(ListenerImpl.class.getName()).log(Level.WARNING,
                             "Failed to resave project " + project.getName()
                             + " for project rename in S3 Copy Artifact build step ("
-                            + oldName + " =>" + newName + ")", ex);
+                            + oldName + " =>" + newName + ')', ex);
                 }
             }
         }
 
         private static List<S3CopyArtifact> getCopiers(AbstractProject project) {
-            DescribableList<Builder,Descriptor<Builder>> list =
+            final DescribableList<Builder,Descriptor<Builder>> list =
                     project instanceof Project ? ((Project<?,?>)project).getBuildersList() : null;
 
             if (list == null)
@@ -388,12 +391,18 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                      Integer.toString(buildNumber));
         }
 
+        @Override
         public void buildEnvVars(AbstractBuild<?,?> build, EnvVars env) {
             if (data!=null) env.putAll(data);
         }
 
+        @Override
         public String getIconFileName() { return null; }
+
+        @Override
         public String getDisplayName() { return null; }
+
+        @Override
         public String getUrlName() { return null; }
     }
 }
