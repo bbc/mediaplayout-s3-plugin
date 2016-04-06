@@ -1,5 +1,6 @@
 package hudson.plugins.s3;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.common.collect.ImmutableList;
@@ -16,22 +17,23 @@ import hudson.tasks.Recorder;
 import hudson.util.CopyOnWriteList;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
 import javax.annotation.Nonnull;
-import javax.servlet.ServletException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public final class S3BucketPublisher extends Recorder implements Describable<Publisher>, SimpleBuildStep {
+public final class S3BucketPublisher extends Recorder implements SimpleBuildStep {
 
     private String profileName;
     @Extension
@@ -51,7 +53,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                              boolean dontWaitForConcurrentBuildCompletion) {
         if (profileName == null) {
             // defaults to the first one
-            S3Profile[] sites = DESCRIPTOR.getProfiles();
+            final S3Profile[] sites = DESCRIPTOR.getProfiles();
             if (sites.length > 0)
                 profileName = sites[0].getName();
         }
@@ -93,7 +95,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     }
 
     public static S3Profile getProfile(String profileName) {        
-        S3Profile[] profiles = DESCRIPTOR.getProfiles();
+        final S3Profile[] profiles = DESCRIPTOR.getProfiles();
 
         if (profileName == null && profiles.length > 0)
             // default
@@ -111,17 +113,17 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         return ImmutableList.of(new S3ArtifactsProjectAction(project));
     }
        
-    protected void log(final PrintStream logger, final String message) {
-        logger.println(StringUtils.defaultString(getDescriptor().getDisplayName()) + " " + message);
+    private void log(final PrintStream logger, final String message) {
+        logger.println(StringUtils.defaultString(getDescriptor().getDisplayName()) + ' ' + message);
     }
 
     @Override
     public void perform(@Nonnull Run<?, ?> run, @Nonnull FilePath ws, @Nonnull Launcher launcher, @Nonnull TaskListener listener)
-            throws InterruptedException, IOException {
+            throws InterruptedException {
 
-        final boolean buildFailed = run.getResult() == Result.FAILURE;
+        final boolean buildFailed = run.getResult().equals(Result.FAILURE);
 
-        S3Profile profile = getProfile();
+        final S3Profile profile = getProfile();
         if (profile == null) {
             log(listener.getLogger(), "No S3 profile is configured.");
 
@@ -131,9 +133,9 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
 
         log(listener.getLogger(), "Using S3 profile: " + profile.getName());
         try {
-            Map<String, String> envVars = run.getEnvironment(listener);
-            Map<String,String> record = Maps.newHashMap();
-            List<FingerprintRecord> artifacts = Lists.newArrayList();
+            final Map<String, String> envVars = run.getEnvironment(listener);
+            final Map<String,String> record = Maps.newHashMap();
+            final List<FingerprintRecord> artifacts = Lists.newArrayList();
             
             for (Entry entry : entries) {
                 
@@ -143,23 +145,23 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     continue;
                 }
                 
-                String expanded = Util.replaceMacro(entry.sourceFile, envVars);
-                String exclude = Util.replaceMacro(entry.excludedFile, envVars);
-                FilePath[] paths = ws.list(expanded, exclude);
+                final String expanded = Util.replaceMacro(entry.sourceFile, envVars);
+                final String exclude = Util.replaceMacro(entry.excludedFile, envVars);
+                final FilePath[] paths = ws.list(expanded, exclude);
 
                 if (paths.length == 0) {
                     // try to do error diagnostics
                     log(listener.getLogger(), "No file(s) found: " + expanded);
-                    String error = ws.validateAntFileMask(expanded);
+                    final String error = ws.validateAntFileMask(expanded);
                     if (error != null)
                         log(listener.getLogger(), error);
                 }
 
-                String bucket = Util.replaceMacro(entry.bucket, envVars);
-                String storageClass = Util.replaceMacro(entry.storageClass, envVars);
-                String selRegion = entry.selectedRegion;
+                final String bucket = Util.replaceMacro(entry.bucket, envVars);
+                final String storageClass = Util.replaceMacro(entry.storageClass, envVars);
+                final String selRegion = entry.selectedRegion;
 
-                Map<String, String> mergedMetadata = new HashMap<String, String>();
+                final Map<String, String> mergedMetadata = new HashMap<String, String>();
 
                 if (userMetadata != null) {
                     for (MetadataPair pair : userMetadata) {
@@ -173,7 +175,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     }
                 }
 
-                Map<String, String> escapedMetadata = new HashMap<String, String>();
+                final Map<String, String> escapedMetadata = new HashMap<String, String>();
 
                 for (Map.Entry<String, String> mapEntry : mergedMetadata.entrySet()) {
                     escapedMetadata.put(
@@ -181,7 +183,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                             Util.replaceMacro(mapEntry.getValue(), envVars));
                 }
 
-                List<FingerprintRecord> records = Lists.newArrayList();
+                final List<FingerprintRecord> records = Lists.newArrayList();
 
                 final int workspacePath = ws.getRemote().length() + 1;
                 for (FilePath src : paths) {
@@ -195,7 +197,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     artifacts.addAll(records);
     
                     for (FingerprintRecord r : records) {
-                      Fingerprint fp = r.addRecord(run);
+                      final Fingerprint fp = r.addRecord(run);
                       if(fp==null) {
                           listener.error("Fingerprinting failed for "+r.getName());
                           continue;
@@ -206,7 +208,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                 }
             }
             // don't bother adding actions if none of the artifacts are managed
-            if (artifacts.size() > 0) {
+            if (!artifacts.isEmpty()) {
                 run.addAction(new S3ArtifactsAction(run, profile, artifacts ));
                 run.addAction(new FingerprintAction(run, record));
             }
@@ -217,11 +219,11 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     }
 
     private String getFilename(FilePath src, boolean flatten, int workspacePath) {
-        String fileName;
+        final String fileName;
         if (flatten) {
             fileName = src.getName();
         } else {
-            String relativeFileName = src.getRemote();
+            final String relativeFileName = src.getRemote();
             fileName = relativeFileName.substring(workspacePath);
         }
         return fileName;
@@ -232,9 +234,9 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
     public static final class S3DeletedJobListener extends RunListener<Run> {
         @Override
         public void onDeleted(Run run) {
-            S3ArtifactsAction artifacts = run.getAction(S3ArtifactsAction.class);
+            final S3ArtifactsAction artifacts = run.getAction(S3ArtifactsAction.class);
             if (artifacts != null) {
-                S3Profile profile = S3BucketPublisher.getProfile(artifacts.getProfile());
+                final S3Profile profile = S3BucketPublisher.getProfile(artifacts.getProfile());
                 for (FingerprintRecord record : artifacts.getArtifacts()) {
                     profile.delete(run, record);
                 }
@@ -275,8 +277,8 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         }
 
         @Override
-        public boolean configure(StaplerRequest req, net.sf.json.JSONObject json) throws FormException {
-            JSONArray array = json.optJSONArray("profile");
+        public boolean configure(StaplerRequest req, JSONObject json) {
+            final JSONArray array = json.optJSONArray("profile");
             if (array != null) {
                 profiles.replaceBy(req.bindJSONToList(S3Profile.class, array));
             }
@@ -289,7 +291,7 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
 
         @SuppressWarnings("unused")
         public ListBoxModel doFillProfileNameItems() {
-            ListBoxModel model = new ListBoxModel();
+            final ListBoxModel model = new ListBoxModel();
             for (S3Profile profile : profiles) {
                 model.add(profile.getName(), profile.getName());
             }
@@ -297,19 +299,19 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
         }
 
         public S3Profile[] getProfiles() {
-            S3Profile[] profileArray = new S3Profile[profiles.size()];
+            final S3Profile[] profileArray = new S3Profile[profiles.size()];
             return profiles.toArray(profileArray);
         }
 
         @SuppressWarnings("unused")
-        public FormValidation doLoginCheck(final StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
-            String name = Util.fixNull(req.getParameter("name"));
-            String accessKey = Util.fixNull(req.getParameter("accessKey"));
-            String secretKey = Util.fixNull(req.getParameter("secretKey"));
-            String useIAMCredential = Util.fixNull(req.getParameter("useRole"));
+        public FormValidation doLoginCheck(final StaplerRequest req, StaplerResponse rsp) {
+            final String name = Util.fixNull(req.getParameter("name"));
+            final String accessKey = Util.fixNull(req.getParameter("accessKey"));
+            final String secretKey = Util.fixNull(req.getParameter("secretKey"));
+            final String useIAMCredential = Util.fixNull(req.getParameter("useRole"));
 
-            boolean couldBeValidated = !name.isEmpty() && !accessKey.isEmpty() && !secretKey.isEmpty();
-            boolean useRole = Boolean.parseBoolean(useIAMCredential);
+            final boolean couldBeValidated = !name.isEmpty() && !accessKey.isEmpty() && !secretKey.isEmpty();
+            final boolean useRole = Boolean.parseBoolean(useIAMCredential);
 
             if (!couldBeValidated) {
                 if (name.isEmpty())
@@ -325,11 +327,11 @@ public final class S3BucketPublisher extends Recorder implements Describable<Pub
                     return FormValidation.ok("Please, enter secretKey");
             }
 
-            AmazonS3Client client = ClientHelper.createClient(accessKey, secretKey, useRole);
+            final AmazonS3Client client = ClientHelper.createClient(accessKey, secretKey, useRole, Jenkins.getActiveInstance().proxy);
 
             try {
                 client.listBuckets();
-            } catch (Exception e) {
+            } catch (AmazonServiceException e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error("Can't connect to S3 service: " + e.getMessage());
             }
