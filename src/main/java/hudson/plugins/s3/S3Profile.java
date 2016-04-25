@@ -4,6 +4,7 @@ import hudson.FilePath;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import hudson.ProxyConfiguration;
+import hudson.plugins.s3.callable.*;
 import jenkins.model.Jenkins;
 import org.apache.commons.io.FilenameUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -26,8 +28,6 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.collect.Lists;
 
 import hudson.model.Run;
-import hudson.plugins.s3.callable.S3DownloadCallable;
-import hudson.plugins.s3.callable.S3UploadCallable;
 import hudson.util.Secret;
 
 public class S3Profile {
@@ -116,10 +116,10 @@ public class S3Profile {
         return client;
     }
 
-    public FingerprintRecord upload(Run<?, ?> run,
+    public List<FingerprintRecord> upload(Run<?, ?> run,
                                     final String bucketName,
-                                    final FilePath filePath,
-                                    final String fileName,
+                                    final FilePath[] filePaths,
+                                    final List<String> fileNames,
                                     final Map<String, String> userMetadata,
                                     final String storageClass,
                                     final String selregion,
@@ -127,33 +127,61 @@ public class S3Profile {
                                     final boolean managedArtifacts,
                                     final boolean useServerSideEncryption,
                                     final boolean gzipFiles) throws IOException, InterruptedException {
-        if (filePath.isDirectory()) {
-            throw new IOException(filePath + " is a directory");
-        }
+        final List<FingerprintRecord> fingerprints = new ArrayList<>(fileNames.size());
 
-        final Destination dest;
-        final boolean produced;
-        if (managedArtifacts) {
-            dest = Destination.newFromRun(run, bucketName, fileName, true);
-            produced = run.getTimeInMillis() <= filePath.lastModified()+2000;
-        }
-        else {
-            dest = new Destination(bucketName, fileName);
-            produced = false;
-        }
+        for (int i=0; i<fileNames.size(); i++) {
+            final FilePath filePath = filePaths[i];
+            final String fileName = fileNames.get(i);
 
-        return repeat(maxUploadRetries, uploadRetryTime, dest, new Callable<FingerprintRecord>() {
-            public FingerprintRecord call() throws IOException, InterruptedException {
-                final S3UploadCallable callable = new S3UploadCallable(produced, fileName, accessKey, secretKey, useRole,
-                        bucketName, dest, userMetadata, storageClass, selregion, useServerSideEncryption, gzipFiles, getProxy());
-
-                if (uploadFromSlave) {
-                    return filePath.act(callable);
-                } else {
-                    return callable.invoke(filePath);
-                }
+            final Destination dest;
+            final boolean produced;
+            if (managedArtifacts) {
+                dest = Destination.newFromRun(run, bucketName, fileName, true);
+                produced = run.getTimeInMillis() <= filePath.lastModified() + 2000;
+            } else {
+                dest = new Destination(bucketName, fileName);
+                produced = false;
             }
-        });
+
+
+            final S3BaseUploadCallable upload;
+            if (gzipFiles) {
+                upload = new S3GzipCallable(accessKey, secretKey, useRole, dest, userMetadata,
+                        storageClass, selregion, useServerSideEncryption, getProxy());
+            } else {
+                upload = new S3UploadCallable(accessKey, secretKey, useRole, dest, userMetadata,
+                        storageClass, selregion, useServerSideEncryption, getProxy());
+            }
+
+            final FingerprintRecord fingerprintRecord = repeat(maxUploadRetries, uploadRetryTime, dest, new Callable<FingerprintRecord>() {
+                @Override
+                public FingerprintRecord call() throws IOException, InterruptedException {
+                    final String md5;
+                    if (uploadFromSlave) {
+                        md5 = filePath.act(upload);
+                    } else {
+                        md5 = upload.invoke(filePath);
+                    }
+                    return new FingerprintRecord(produced, bucketName, fileName, selregion, md5);
+                }
+            });
+
+            fingerprints.add(fingerprintRecord);
+        }
+
+        waitUploads(filePaths, uploadFromSlave);
+
+        return fingerprints;
+    }
+
+    private void waitUploads(final FilePath[] filePaths, boolean uploadFromSlave) throws InterruptedException, IOException {
+        for (FilePath filePath : filePaths) {
+            if (uploadFromSlave) {
+                filePath.act(new S3WaitUploadCallable());
+            } else {
+                new S3WaitUploadCallable().invoke(filePath);
+            }
+        }
     }
 
     public List<String> list(Run build, String bucket) {
@@ -194,13 +222,14 @@ public class S3Profile {
           for(final FingerprintRecord record : artifacts) {
               final S3Artifact artifact = record.getArtifact();
               final Destination dest = Destination.newFromRun(build, artifact);
-              final FilePath target = getFilePath(targetDir, flatten, artifact);
+              final FilePath target = getFilePath(targetDir, flatten, artifact.getName());
 
               if (FileHelper.selected(includeFilter, excludeFilter, artifact.getName())) {
                   fingerprints.add(repeat(maxDownloadRetries, downloadRetryTime, dest, new Callable<FingerprintRecord>() {
                       @Override
                       public FingerprintRecord call() throws IOException, InterruptedException {
-                          return target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest, artifact.getRegion(), getProxy()));
+                          final String md5 = target.act(new S3DownloadCallable(accessKey, secretKey, useRole, dest, artifact.getRegion(), getProxy()));
+                          return new FingerprintRecord(true, dest.bucketName, target.getName(), artifact.getRegion(), md5);
                       }
                   }));
               }
@@ -224,12 +253,12 @@ public class S3Profile {
         }
     }
 
-    private FilePath getFilePath(FilePath targetDir, boolean flatten, S3Artifact artifact) {
+    private FilePath getFilePath(FilePath targetDir, boolean flatten, String fullName) {
         if (flatten) {
-            return new FilePath(targetDir, FilenameUtils.getName(artifact.getName()));
+            return new FilePath(targetDir, FilenameUtils.getName(fullName));
         }
         else  {
-            return new FilePath(targetDir, artifact.getName());
+            return new FilePath(targetDir, fullName);
         }
     }
 
