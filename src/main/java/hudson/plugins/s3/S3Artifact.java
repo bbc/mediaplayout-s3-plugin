@@ -1,8 +1,12 @@
 package hudson.plugins.s3;
 
+import org.kohsuke.stapler.export.Exported;
+import org.kohsuke.stapler.export.ExportedBean;
+
 import java.io.ObjectStreamException;
 import java.io.Serializable;
 
+@ExportedBean
 public final class S3Artifact implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -27,14 +31,17 @@ public final class S3Artifact implements Serializable {
         this.useFullProjectName = false;
     }
 
+    @Exported
     public String getBucket() {
         return bucket;
     }
 
+    @Exported
     public String getName() {
         return name;
     }
 
+    @Exported
     public String getRegion() {
         return region;
     }

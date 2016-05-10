@@ -4,10 +4,13 @@ import hudson.model.Fingerprint;
 import hudson.model.FingerprintMap;
 import hudson.model.Run;
 import jenkins.model.Jenkins;
+import org.kohsuke.stapler.export.Exported;
+import org.kohsuke.stapler.export.ExportedBean;
 
 import java.io.IOException;
 import java.io.Serializable;
 
+@ExportedBean
 public class FingerprintRecord implements Serializable {
     private static final long serialVersionUID = 1L;
     private final boolean produced;
@@ -26,14 +29,17 @@ public class FingerprintRecord implements Serializable {
         return map.getOrCreate(produced ? run : null, artifact.getName(), md5sum);
     }
 
+    @Exported
     public String getName() {
         return artifact.getName();
     }
 
+    @Exported
     public String getFingerprint() {
         return md5sum;
     }
 
+    @Exported
     public S3Artifact getArtifact() {
         return artifact;
     }
