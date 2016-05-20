@@ -33,16 +33,21 @@ abstract class S3Callable<T> implements FileCallable<T>
 
     protected synchronized TransferManager getTransferManager()
     {
-        if (transferManagers.get(region) == null) {
+        final String uniqueKey = getUniqueKey();
+        if (transferManagers.get(uniqueKey) == null) {
             final AmazonS3 client = ClientHelper.createClient(accessKey, Secret.toString(secretKey), useRole, region, proxy);
-            transferManagers.put(region, new TransferManager(client));
+            transferManagers.put(uniqueKey, new TransferManager(client));
         }
 
-        return transferManagers.get(region);
+        return transferManagers.get(uniqueKey);
     }
 
     @Override
     public void checkRoles(RoleChecker roleChecker) throws SecurityException {
 
+    }
+
+    private String getUniqueKey() {
+        return region + '_' + secretKey + '_' + accessKey + '_' + useRole;
     }
 }
