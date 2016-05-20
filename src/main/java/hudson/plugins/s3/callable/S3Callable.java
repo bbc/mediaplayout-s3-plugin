@@ -5,14 +5,12 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import hudson.FilePath.FileCallable;
 import hudson.ProxyConfiguration;
 import hudson.plugins.s3.ClientHelper;
-import hudson.plugins.s3.FingerprintRecord;
 import hudson.util.Secret;
 import org.jenkinsci.remoting.RoleChecker;
 
-import java.io.IOException;
 import java.util.HashMap;
 
-abstract class S3Callable implements FileCallable<FingerprintRecord>
+abstract class S3Callable<T> implements FileCallable<T>
 {
     private static final long serialVersionUID = 1L;
 
@@ -46,9 +44,5 @@ abstract class S3Callable implements FileCallable<FingerprintRecord>
     @Override
     public void checkRoles(RoleChecker roleChecker) throws SecurityException {
 
-    }
-
-    public FingerprintRecord generateFingerprint(boolean produced, String bucket, String name, String md5sum) throws IOException {
-        return new FingerprintRecord(produced, bucket, name, region, md5sum);
     }
 }

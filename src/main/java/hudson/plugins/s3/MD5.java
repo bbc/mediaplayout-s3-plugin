@@ -1,6 +1,7 @@
 package hudson.plugins.s3;
 
 import hudson.FilePath;
+import org.apache.commons.codec.digest.DigestUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -21,6 +22,6 @@ public class MD5 {
     }
 
     private static String getMD5FromStream(InputStream stream) throws IOException {
-        return org.apache.commons.codec.digest.DigestUtils.md5Hex(stream);
+        return DigestUtils.md5Hex(stream);
     }
 }

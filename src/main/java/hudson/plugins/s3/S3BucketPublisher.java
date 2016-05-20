@@ -61,16 +61,16 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         this.profileName = profileName;
         this.entries = entries;
 
-        if (userMetadata==null)
-            userMetadata = new ArrayList<MetadataPair>();
+        if (userMetadata == null)
+            userMetadata = new ArrayList<>();
         this.userMetadata = userMetadata;
 
         this.dontWaitForConcurrentBuildCompletion = dontWaitForConcurrentBuildCompletion;
     }
 
     protected Object readResolve() {
-        if (userMetadata==null)
-            userMetadata = new ArrayList<MetadataPair>();
+        if (userMetadata == null)
+            userMetadata = new ArrayList<>();
         return this;
     }
 
@@ -94,7 +94,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         return getProfile(profileName);
     }
 
-    public static S3Profile getProfile(String profileName) {        
+    public static S3Profile getProfile(String profileName) {
         final S3Profile[] profiles = DESCRIPTOR.getProfiles();
 
         if (profileName == null && profiles.length > 0)
@@ -112,7 +112,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     public Collection<? extends Action> getProjectActions(AbstractProject<?, ?> project) {
         return ImmutableList.of(new S3ArtifactsProjectAction(project));
     }
-       
+
     private void log(final PrintStream logger, final String message) {
         logger.println(StringUtils.defaultString(getDescriptor().getDisplayName()) + ' ' + message);
     }
@@ -121,30 +121,33 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     public void perform(@Nonnull Run<?, ?> run, @Nonnull FilePath ws, @Nonnull Launcher launcher, @Nonnull TaskListener listener)
             throws InterruptedException {
 
-        final boolean buildFailed = run.getResult().equals(Result.FAILURE);
+        if (run.isBuilding()) {
+            log(listener.getLogger(), "Build is still running");
+        }
 
         final S3Profile profile = getProfile();
+
         if (profile == null) {
             log(listener.getLogger(), "No S3 profile is configured.");
-
             run.setResult(Result.UNSTABLE);
             return;
         }
 
         log(listener.getLogger(), "Using S3 profile: " + profile.getName());
+
         try {
             final Map<String, String> envVars = run.getEnvironment(listener);
-            final Map<String,String> record = Maps.newHashMap();
+            final Map<String, String> record = Maps.newHashMap();
             final List<FingerprintRecord> artifacts = Lists.newArrayList();
-            
+
             for (Entry entry : entries) {
-                
-                if (entry.noUploadOnFailure && buildFailed) {
+
+                if (entry.noUploadOnFailure && Result.FAILURE.equals(run.getResult())) {
                     // build failed. don't post
                     log(listener.getLogger(), "Skipping publishing on S3 because build failed");
                     continue;
                 }
-                
+
                 final String expanded = Util.replaceMacro(entry.sourceFile, envVars);
                 final String exclude = Util.replaceMacro(entry.excludedFile, envVars);
                 final FilePath[] paths = ws.list(expanded, exclude);
@@ -161,61 +164,86 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 final String storageClass = Util.replaceMacro(entry.storageClass, envVars);
                 final String selRegion = entry.selectedRegion;
 
-                final Map<String, String> mergedMetadata = new HashMap<String, String>();
-
-                if (userMetadata != null) {
-                    for (MetadataPair pair : userMetadata) {
-                        mergedMetadata.put(pair.key, pair.value);
-                    }
-                }
-
-                if (entry.userMetadata != null) {
-                    for (MetadataPair pair : entry.userMetadata) {
-                        mergedMetadata.put(pair.key, pair.value);
-                    }
-                }
-
-                final Map<String, String> escapedMetadata = new HashMap<String, String>();
-
-                for (Map.Entry<String, String> mapEntry : mergedMetadata.entrySet()) {
-                    escapedMetadata.put(
-                            Util.replaceMacro(mapEntry.getKey(), envVars),
-                            Util.replaceMacro(mapEntry.getValue(), envVars));
-                }
-
-                final List<FingerprintRecord> records = Lists.newArrayList();
+                final Map<String, String> escapedMetadata = buildMetadata(envVars, entry);
 
                 final int workspacePath = ws.getRemote().length() + 1;
-                for (FilePath src : paths) {
-                    final String fileName = getFilename(src, entry.flatten, workspacePath);
-
-                    log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region=" + selRegion + ", upload from slave=" + entry.uploadFromSlave + " managed="+ entry.managedArtifacts + " , server encryption "+entry.useServerSideEncryption);
-                    records.add(profile.upload(run, bucket, src, fileName, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.gzipFiles));
-                }
+                final List<FingerprintRecord> fingerprints = parallelUpload(run, listener, profile, entry, paths, bucket, storageClass, selRegion, escapedMetadata, workspacePath);
 
                 if (entry.managedArtifacts) {
-                    artifacts.addAll(records);
-    
-                    for (FingerprintRecord r : records) {
-                      final Fingerprint fp = r.addRecord(run);
-                      if(fp==null) {
-                          listener.error("Fingerprinting failed for "+r.getName());
-                          continue;
-                      }
-                      fp.addFor(run);
-                      record.put(r.getName(),fp.getHashString());
-                   }
+                    artifacts.addAll(fingerprints);
+                    fillFingerprints(run, listener, record, fingerprints);
                 }
             }
+
             // don't bother adding actions if none of the artifacts are managed
             if (!artifacts.isEmpty()) {
-                run.addAction(new S3ArtifactsAction(run, profile, artifacts ));
+                run.addAction(new S3ArtifactsAction(run, profile, artifacts));
                 run.addAction(new FingerprintAction(run, record));
             }
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             run.setResult(Result.UNSTABLE);
         }
+    }
+
+    private void fillFingerprints(@Nonnull Run<?, ?> run, @Nonnull TaskListener listener, Map<String, String> record, List<FingerprintRecord> fingerprints) throws IOException {
+        for (FingerprintRecord r : fingerprints) {
+            final Fingerprint fp = r.addRecord(run);
+            if (fp == null) {
+                listener.error("Fingerprinting failed for " + r.getName());
+                continue;
+            }
+            fp.addFor(run);
+            record.put(r.getName(), fp.getHashString());
+        }
+    }
+
+    private Map<String, String> buildMetadata(Map<String, String> envVars, Entry entry) {
+        final Map<String, String> mergedMetadata = new HashMap<>();
+
+        if (userMetadata != null) {
+            for (MetadataPair pair : userMetadata) {
+                mergedMetadata.put(pair.key, pair.value);
+            }
+        }
+
+        if (entry.userMetadata != null) {
+            for (MetadataPair pair : entry.userMetadata) {
+                mergedMetadata.put(pair.key, pair.value);
+            }
+        }
+
+        final Map<String, String> escapedMetadata = new HashMap<>();
+
+        for (Map.Entry<String, String> mapEntry : mergedMetadata.entrySet()) {
+            escapedMetadata.put(
+                    Util.replaceMacro(mapEntry.getKey(), envVars),
+                    Util.replaceMacro(mapEntry.getValue(), envVars));
+        }
+
+        return escapedMetadata;
+    }
+
+    private List<FingerprintRecord> parallelUpload(@Nonnull Run<?, ?> run, @Nonnull TaskListener listener, S3Profile profile, Entry entry, FilePath[] paths, String bucket, String storageClass, String selRegion, Map<String, String> escapedMetadata, int workspacePath) throws IOException, InterruptedException {
+        final List<FingerprintRecord> records = Lists.newArrayList();
+        final List<String> filenames = new ArrayList<>();
+        for (FilePath src : paths) {
+            if (src.isDirectory()) {
+                throw new IOException(src + " is a directory");
+            }
+
+            final String fileName = getFilename(src, entry.flatten, workspacePath);
+            filenames.add(fileName);
+
+            log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region=" + selRegion + ", will be uploaded from slave=" + entry.uploadFromSlave + " managed=" + entry.managedArtifacts + " , server encryption " + entry.useServerSideEncryption);
+        }
+
+        final List<FingerprintRecord> fingerprints = profile.upload(run, bucket, paths, filenames, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.gzipFiles);
+        for (FingerprintRecord fingerprintRecord : fingerprints) {
+            records.add(fingerprintRecord);
+        }
+
+        return records;
     }
 
     private String getFilename(FilePath src, boolean flatten, int workspacePath) {
@@ -243,7 +271,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             }
         }
     }
-   
+
     public BuildStepMonitor getRequiredMonitorService() {
         return dontWaitForConcurrentBuildCompletion ? BuildStepMonitor.NONE : BuildStepMonitor.STEP;
     }
@@ -281,8 +309,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             final JSONArray array = json.optJSONArray("profile");
             if (array != null) {
                 profiles.replaceBy(req.bindJSONToList(S3Profile.class, array));
-            }
-            else {
+            } else {
                 profiles.replaceBy(req.bindJSON(S3Profile.class, json.getJSONObject("profile")));
             }
             save();
