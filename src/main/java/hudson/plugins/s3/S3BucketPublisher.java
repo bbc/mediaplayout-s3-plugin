@@ -155,7 +155,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 if (paths.length == 0) {
                     // try to do error diagnostics
                     log(listener.getLogger(), "No file(s) found: " + expanded);
-                    final String error = ws.validateAntFileMask(expanded);
+                    final String error = ws.validateAntFileMask(expanded, 100);
                     if (error != null)
                         log(listener.getLogger(), error);
                 }
@@ -168,6 +168,10 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
                 final int workspacePath = ws.getRemote().length() + 1;
                 final List<FingerprintRecord> fingerprints = parallelUpload(run, listener, profile, entry, paths, bucket, storageClass, selRegion, escapedMetadata, workspacePath);
+
+                for (FingerprintRecord fingerprintRecord : fingerprints) {
+                    fingerprintRecord.setKeepForever(entry.keepForever);
+                }
 
                 if (entry.managedArtifacts) {
                     artifacts.addAll(fingerprints);
@@ -257,7 +261,6 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         return fileName;
     }
 
-    // Listen for project renames and update property here if needed.
     @Extension
     public static final class S3DeletedJobListener extends RunListener<Run> {
         @Override
@@ -266,7 +269,9 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             if (artifacts != null) {
                 final S3Profile profile = S3BucketPublisher.getProfile(artifacts.getProfile());
                 for (FingerprintRecord record : artifacts.getArtifacts()) {
-                    profile.delete(run, record);
+                    if (!record.isKeepForever()) {
+                        profile.delete(run, record);
+                    }
                 }
             }
         }

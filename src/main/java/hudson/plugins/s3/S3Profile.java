@@ -143,7 +143,6 @@ public class S3Profile {
                 produced = false;
             }
 
-
             final S3BaseUploadCallable upload;
             if (gzipFiles) {
                 upload = new S3GzipCallable(accessKey, secretKey, useRole, dest, userMetadata,
