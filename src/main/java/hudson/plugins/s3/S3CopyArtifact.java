@@ -31,6 +31,8 @@ import hudson.FilePath;
 import hudson.Launcher;
 import hudson.Util;
 import hudson.console.HyperlinkNote;
+import hudson.matrix.MatrixBuild;
+import hudson.matrix.MatrixProject;
 import hudson.maven.MavenModuleSet;
 import hudson.maven.MavenModuleSetBuild;
 import hudson.model.*;
@@ -200,8 +202,19 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                 boolean ok = perform(src, dst, includeFilter, excludeFilter, targetDir, console);
 
                 // Copy artifacts from all modules of this Maven build (automatic archiving)
-                for (Run r : ((MavenModuleSetBuild)src).getModuleLastBuilds().values()) {
+                for (Run r : ((MavenModuleSetBuild) src).getModuleLastBuilds().values()) {
                     ok |= perform(r, dst, includeFilter, excludeFilter, targetDir, console);
+                }
+
+                setResult(dst, ok);
+            } else if (src instanceof MatrixBuild) {
+                boolean ok = false;
+                // Copy artifacts from all configurations of this matrix build
+                // Use MatrixBuild.getExactRuns if available
+                for (Run r : ((MatrixBuild) src).getExactRuns()) {
+                    // Use subdir of targetDir with configuration name (like "jdk=java6u20")
+                    FilePath subdir = targetDir.child(r.getParent().getName());
+                    ok |= perform(r, dst, includeFilter, excludeFilter, subdir, console);
                 }
 
                 setResult(dst, ok);
@@ -300,7 +313,9 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                 
                 result = item instanceof MavenModuleSet
                        ? FormValidation.warning(Messages.CopyArtifact_MavenProject())
-                       : (FormValidation.ok());
+                        : (item instanceof MatrixProject
+                        ? FormValidation.warning(Messages.CopyArtifact_MatrixProject())
+                        : FormValidation.ok());
             }
             else if (value.indexOf('$') >= 0)
                 result = FormValidation.warning(Messages.CopyArtifact_ParameterizedName());
@@ -354,8 +369,10 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         }
 
         private static List<S3CopyArtifact> getCopiers(AbstractProject project) {
-            final DescribableList<Builder,Descriptor<Builder>> list =
-                    project instanceof Project ? ((Project<?,?>)project).getBuildersList() : null;
+            final DescribableList<Builder, Descriptor<Builder>> list =
+                    project instanceof Project ? ((Project<?, ?>) project).getBuildersList()
+                            : (project instanceof MatrixProject ?
+                            ((MatrixProject) project).getBuildersList() : null);
 
             if (list == null)
                 return Collections.emptyList();
