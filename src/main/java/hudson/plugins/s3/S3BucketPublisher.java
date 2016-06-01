@@ -27,6 +27,7 @@ import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
 import javax.annotation.Nonnull;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
@@ -166,7 +167,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
                 final Map<String, String> escapedMetadata = buildMetadata(envVars, entry);
 
-                final int workspacePath = ws.getRemote().length() + 1;
+                final int workspacePath = getSearchPathLength(ws.getRemote(), expanded);
                 final List<FingerprintRecord> fingerprints = parallelUpload(run, listener, profile, entry, paths, bucket, storageClass, selRegion, escapedMetadata, workspacePath);
 
                 for (FingerprintRecord fingerprintRecord : fingerprints) {
@@ -187,6 +188,25 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             run.setResult(Result.UNSTABLE);
+        }
+    }
+
+    private int getSearchPathLength(String workSpace, String filterExpanded) {
+        File file1 = new File(workSpace);
+        File file2 = new File(file1, filterExpanded);
+
+        String pathWithFilter = file2.getPath();
+
+        int indexOfWildCard = pathWithFilter.indexOf("*");
+
+        if (indexOfWildCard > 0)
+        {
+            String s = pathWithFilter.substring(0, indexOfWildCard);
+            return s.length();
+        }
+        else
+        {
+            return file2.getParent().length() + 1;
         }
     }
 
