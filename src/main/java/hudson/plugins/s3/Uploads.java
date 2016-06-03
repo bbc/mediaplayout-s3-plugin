@@ -9,9 +9,11 @@ import hudson.FilePath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.logging.Logger;
 
 public final class Uploads {
     private Uploads() {}
+    private static final Logger LOGGER = Logger.getLogger(Uploads.class.getName());
 
     private static transient volatile Uploads instance;
     private final transient HashMap<FilePath, Upload> startedUploads = new HashMap<>();
@@ -23,14 +25,29 @@ public final class Uploads {
         openedStreams.put(file, inputsStream);
     }
 
-    public void finishUploading(FilePath filePath) throws IOException, InterruptedException {
+    public void finishUploading(FilePath filePath) throws InterruptedException {
         final Upload upload = startedUploads.remove(filePath);
         try {
             upload.waitForCompletion();
         }
-        catch (InterruptedException e) {
-            openedStreams.remove(filePath).close();
-            throw e;
+        finally {
+            closeStream(filePath);
+        }
+    }
+
+    public void cleanup(FilePath filePath) {
+        startedUploads.remove(filePath);
+        closeStream(filePath);
+    }
+
+    private void closeStream(FilePath filePath) {
+        try {
+            final InputStream stream = openedStreams.remove(filePath);
+            if (stream != null) {
+                stream.close();
+            }
+        } catch (IOException e) {
+            LOGGER.warning("Failed to close stream for file:" + filePath);
         }
     }
 

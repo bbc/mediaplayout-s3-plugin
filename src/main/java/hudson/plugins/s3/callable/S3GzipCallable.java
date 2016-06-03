@@ -13,7 +13,7 @@ import java.io.*;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
-public final class S3GzipCallable extends S3BaseUploadCallable {
+public final class S3GzipCallable extends S3BaseUploadCallable implements MasterSlaveCallable<String> {
     public S3GzipCallable(String accessKey, Secret secretKey, boolean useRole, Destination dest, Map<String, String> userMetadata, String storageClass, String selregion, boolean useServerSideEncryption, ProxyConfiguration proxy) {
         super(accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion, useServerSideEncryption, proxy);
     }

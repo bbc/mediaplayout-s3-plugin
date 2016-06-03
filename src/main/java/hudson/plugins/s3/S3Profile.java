@@ -118,7 +118,7 @@ public class S3Profile {
 
     public List<FingerprintRecord> upload(Run<?, ?> run,
                                     final String bucketName,
-                                    final FilePath[] filePaths,
+                                    final List<FilePath> filePaths,
                                     final List<String> fileNames,
                                     final Map<String, String> userMetadata,
                                     final String storageClass,
@@ -129,57 +129,71 @@ public class S3Profile {
                                     final boolean gzipFiles) throws IOException, InterruptedException {
         final List<FingerprintRecord> fingerprints = new ArrayList<>(fileNames.size());
 
-        for (int i=0; i<fileNames.size(); i++) {
-            final FilePath filePath = filePaths[i];
-            final String fileName = fileNames.get(i);
+        try {
+            for (int i = 0; i < fileNames.size(); i++) {
+                final FilePath filePath = filePaths.get(i);
+                final String fileName = fileNames.get(i);
 
-            final Destination dest;
-            final boolean produced;
-            if (managedArtifacts) {
-                dest = Destination.newFromRun(run, bucketName, fileName, true);
-                produced = run.getTimeInMillis() <= filePath.lastModified() + 2000;
-            } else {
-                dest = new Destination(bucketName, fileName);
-                produced = false;
-            }
-
-            final S3BaseUploadCallable upload;
-            if (gzipFiles) {
-                upload = new S3GzipCallable(accessKey, secretKey, useRole, dest, userMetadata,
-                        storageClass, selregion, useServerSideEncryption, getProxy());
-            } else {
-                upload = new S3UploadCallable(accessKey, secretKey, useRole, dest, userMetadata,
-                        storageClass, selregion, useServerSideEncryption, getProxy());
-            }
-
-            final FingerprintRecord fingerprintRecord = repeat(maxUploadRetries, uploadRetryTime, dest, new Callable<FingerprintRecord>() {
-                @Override
-                public FingerprintRecord call() throws IOException, InterruptedException {
-                    final String md5;
-                    if (uploadFromSlave) {
-                        md5 = filePath.act(upload);
-                    } else {
-                        md5 = upload.invoke(filePath);
-                    }
-                    return new FingerprintRecord(produced, bucketName, fileName, selregion, md5);
+                final Destination dest;
+                final boolean produced;
+                if (managedArtifacts) {
+                    dest = Destination.newFromRun(run, bucketName, fileName, true);
+                    produced = run.getTimeInMillis() <= filePath.lastModified() + 2000;
+                } else {
+                    dest = new Destination(bucketName, fileName);
+                    produced = false;
                 }
-            });
 
-            fingerprints.add(fingerprintRecord);
+                final MasterSlaveCallable<String> upload;
+                if (gzipFiles) {
+                    upload = new S3GzipCallable(accessKey, secretKey, useRole, dest, userMetadata,
+                            storageClass, selregion, useServerSideEncryption, getProxy());
+                } else {
+                    upload = new S3UploadCallable(accessKey, secretKey, useRole, dest, userMetadata,
+                            storageClass, selregion, useServerSideEncryption, getProxy());
+                }
+
+                final FingerprintRecord fingerprintRecord = repeat(maxUploadRetries, uploadRetryTime, dest, new Callable<FingerprintRecord>() {
+                    @Override
+                    public FingerprintRecord call() throws IOException, InterruptedException {
+                        final String md5 = invoke(uploadFromSlave, filePath, upload);
+                        return new FingerprintRecord(produced, bucketName, fileName, selregion, md5);
+                    }
+                });
+
+                fingerprints.add(fingerprintRecord);
+            }
+
+            waitUploads(filePaths, uploadFromSlave);
+        } catch (InterruptedException | IOException exception) {
+            cleanupUploads(filePaths, uploadFromSlave);
+            throw exception;
         }
-
-        waitUploads(filePaths, uploadFromSlave);
 
         return fingerprints;
     }
 
-    private void waitUploads(final FilePath[] filePaths, boolean uploadFromSlave) throws InterruptedException, IOException {
+    private void cleanupUploads(final List<FilePath> filePaths, boolean uploadFromSlave) {
         for (FilePath filePath : filePaths) {
-            if (uploadFromSlave) {
-                filePath.act(new S3WaitUploadCallable());
-            } else {
-                new S3WaitUploadCallable().invoke(filePath);
+            try {
+                invoke(uploadFromSlave, filePath, new S3CleanupUploadCallable());
             }
+            catch (InterruptedException | IOException ignored) {
+            }
+        }
+    }
+
+    private void waitUploads(final List<FilePath> filePaths, boolean uploadFromSlave) throws InterruptedException, IOException {
+        for (FilePath filePath : filePaths) {
+            invoke(uploadFromSlave, filePath, new S3WaitUploadCallable());
+        }
+    }
+
+    private <T> T invoke(boolean uploadFromSlave, FilePath filePath, MasterSlaveCallable<T> callable) throws InterruptedException, IOException {
+        if (uploadFromSlave) {
+            return filePath.act(callable);
+        } else {
+            return callable.invoke(filePath);
         }
     }
 
@@ -263,8 +277,6 @@ public class S3Profile {
 
     /**
        * Delete some artifacts of a given run
-       * @param run
-       * @param record
        */
       public void delete(Run run, FingerprintRecord record) {
           final Destination dest = Destination.newFromRun(run, record.getArtifact());

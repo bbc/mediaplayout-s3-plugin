@@ -11,7 +11,7 @@ import hudson.util.Secret;
 import java.io.IOException;
 import java.util.Map;
 
-public final class S3UploadCallable extends S3BaseUploadCallable {
+public final class S3UploadCallable extends S3BaseUploadCallable implements MasterSlaveCallable<String> {
     private static final long serialVersionUID = 1L;
 
     public S3UploadCallable(String accessKey, Secret secretKey, boolean useRole, Destination dest, Map<String, String> userMetadata, String storageClass, String selregion, boolean useServerSideEncryption, ProxyConfiguration proxy) {

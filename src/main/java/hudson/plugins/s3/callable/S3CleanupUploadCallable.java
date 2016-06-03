@@ -7,16 +7,16 @@ import org.jenkinsci.remoting.RoleChecker;
 
 import java.io.File;
 
-public final class S3WaitUploadCallable implements MasterSlaveCallable<Void> {
+public final class S3CleanupUploadCallable implements MasterSlaveCallable<Void> {
     @Override
-    public Void invoke(File f, VirtualChannel channel) throws InterruptedException {
+    public Void invoke(File f, VirtualChannel channel) {
         invoke(new FilePath(f));
         return null;
     }
 
     @Override
-    public Void invoke(FilePath file) throws InterruptedException {
-        Uploads.getInstance().finishUploading(file);
+    public Void invoke(FilePath file) {
+        Uploads.getInstance().cleanup(file);
         return null;
     }
 

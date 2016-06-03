@@ -151,26 +151,47 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
                 final String expanded = Util.replaceMacro(entry.sourceFile, envVars);
                 final String exclude = Util.replaceMacro(entry.excludedFile, envVars);
-                final FilePath[] paths = ws.list(expanded, exclude);
-
-                if (paths.length == 0) {
-                    // try to do error diagnostics
-                    log(listener.getLogger(), "No file(s) found: " + expanded);
-                    final String error = ws.validateAntFileMask(expanded, 100);
-                    if (error != null)
-                        log(listener.getLogger(), error);
+                if (expanded == null) {
+                    throw new IOException();
                 }
 
                 final String bucket = Util.replaceMacro(entry.bucket, envVars);
                 final String storageClass = Util.replaceMacro(entry.storageClass, envVars);
                 final String selRegion = entry.selectedRegion;
 
+                final List<FilePath> paths = new ArrayList<>();
+                final List<String> filenames = new ArrayList<>();
+
+                for (String startPath : expanded.split(",")) {
+                    for (FilePath path : ws.list(startPath, exclude)) {
+                        if (path.isDirectory()) {
+                            throw new IOException(path + " is a directory");
+                        }
+
+                        paths.add(path);
+                        final int workspacePath = getSearchPathLength(ws.getRemote(), startPath);
+                        filenames.add(getFilename(path, entry.flatten, workspacePath));
+                        log(listener.getLogger(), "bucket=" + bucket + ", file=" + path.getName() + " region=" + selRegion + ", will be uploaded from slave=" + entry.uploadFromSlave + " managed=" + entry.managedArtifacts + " , server encryption " + entry.useServerSideEncryption);
+                    }
+                }
+
+                if (paths.isEmpty()) {
+                    // try to do error diagnostics
+                    log(listener.getLogger(), "No file(s) found: " + expanded);
+                    final String error = ws.validateAntFileMask(expanded, 100);
+                    if (error != null) {
+                        log(listener.getLogger(), error);
+                    }
+                }
+
+
                 final Map<String, String> escapedMetadata = buildMetadata(envVars, entry);
 
-                final int workspacePath = getSearchPathLength(ws.getRemote(), expanded);
-                final List<FingerprintRecord> fingerprints = parallelUpload(run, listener, profile, entry, paths, bucket, storageClass, selRegion, escapedMetadata, workspacePath);
+                final List<FingerprintRecord> records = Lists.newArrayList();
+                final List<FingerprintRecord> fingerprints = profile.upload(run, bucket, paths, filenames, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.gzipFiles);
 
                 for (FingerprintRecord fingerprintRecord : fingerprints) {
+                    records.add(fingerprintRecord);
                     fingerprintRecord.setKeepForever(entry.keepForever);
                 }
 
@@ -192,16 +213,16 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     }
 
     private int getSearchPathLength(String workSpace, String filterExpanded) {
-        File file1 = new File(workSpace);
-        File file2 = new File(file1, filterExpanded);
+        final File file1 = new File(workSpace);
+        final File file2 = new File(file1, filterExpanded);
 
-        String pathWithFilter = file2.getPath();
+        final String pathWithFilter = file2.getPath();
 
-        int indexOfWildCard = pathWithFilter.indexOf("*");
+        final int indexOfWildCard = pathWithFilter.indexOf('*');
 
         if (indexOfWildCard > 0)
         {
-            String s = pathWithFilter.substring(0, indexOfWildCard);
+            final String s = pathWithFilter.substring(0, indexOfWildCard);
             return s.length();
         }
         else
@@ -248,35 +269,13 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         return escapedMetadata;
     }
 
-    private List<FingerprintRecord> parallelUpload(@Nonnull Run<?, ?> run, @Nonnull TaskListener listener, S3Profile profile, Entry entry, FilePath[] paths, String bucket, String storageClass, String selRegion, Map<String, String> escapedMetadata, int workspacePath) throws IOException, InterruptedException {
-        final List<FingerprintRecord> records = Lists.newArrayList();
-        final List<String> filenames = new ArrayList<>();
-        for (FilePath src : paths) {
-            if (src.isDirectory()) {
-                throw new IOException(src + " is a directory");
-            }
-
-            final String fileName = getFilename(src, entry.flatten, workspacePath);
-            filenames.add(fileName);
-
-            log(listener.getLogger(), "bucket=" + bucket + ", file=" + src.getName() + " region=" + selRegion + ", will be uploaded from slave=" + entry.uploadFromSlave + " managed=" + entry.managedArtifacts + " , server encryption " + entry.useServerSideEncryption);
-        }
-
-        final List<FingerprintRecord> fingerprints = profile.upload(run, bucket, paths, filenames, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.gzipFiles);
-        for (FingerprintRecord fingerprintRecord : fingerprints) {
-            records.add(fingerprintRecord);
-        }
-
-        return records;
-    }
-
-    private String getFilename(FilePath src, boolean flatten, int workspacePath) {
+    private String getFilename(FilePath src, boolean flatten, int searchIndex) {
         final String fileName;
         if (flatten) {
             fileName = src.getName();
         } else {
             final String relativeFileName = src.getRemote();
-            fileName = relativeFileName.substring(workspacePath);
+            fileName = relativeFileName.substring(searchIndex);
         }
         return fileName;
     }
