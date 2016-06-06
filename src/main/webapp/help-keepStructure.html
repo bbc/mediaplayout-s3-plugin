@@ -1,0 +1,13 @@
+<div>Keep relative structure for folders
+    Keeps behavior that was introduced in first version of 0.9.
+    Imagine that you have simple structure:
+    <pre>
+        tests
+        -- a
+        ---- results
+        -- b
+        ---- results
+    </pre>
+    If you specifed tests/* as a parameters, plugin will upload it to tests/a/results...tests/b/results.
+    If this checkbox is disabled, plugin will upload it as a/results...b/results.
+</div>

@@ -39,12 +39,13 @@ public class S3Profile {
     private final int maxDownloadRetries;
     private final int downloadRetryTime;
     private transient volatile AmazonS3Client client;
+    private final boolean keepStructure;
 
     private final boolean useRole;
     private final int signedUrlExpirySeconds;
 
     @DataBoundConstructor
-    public S3Profile(String name, String accessKey, String secretKey, boolean useRole, int signedUrlExpirySeconds, String maxUploadRetries, String uploadRetryTime, String maxDownloadRetries, String downloadRetryTime) {
+    public S3Profile(String name, String accessKey, String secretKey, boolean useRole, int signedUrlExpirySeconds, String maxUploadRetries, String uploadRetryTime, String maxDownloadRetries, String downloadRetryTime, boolean keepStructure) {
         this.name = name;
         this.useRole = useRole;
         this.maxUploadRetries = parseWithDefault(maxUploadRetries, 5);
@@ -59,6 +60,12 @@ public class S3Profile {
             this.accessKey = accessKey;
             this.secretKey = Secret.fromString(secretKey);
         }
+
+        this.keepStructure = keepStructure;
+    }
+
+    public boolean isKeepStructure() {
+        return keepStructure;
     }
 
     private int parseWithDefault(String number, int defaultValue) {

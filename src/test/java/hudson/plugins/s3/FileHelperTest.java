@@ -71,4 +71,57 @@ public class FileHelperTest {
 
         assertTrue(FileHelper.selected(includeFilter, null, "a.txt"));
     }
+
+    @Test
+    public void testGetStartIndexWithAsterisk() throws Exception {
+        String workspace = "/var/lib/jenkins/jobs/workspace";
+        String folder = "tests/*";
+
+        int startIndex = FileHelper.getSearchPathLength(workspace, folder, false);
+        assertEquals("/var/lib/jenkins/jobs/workspace/tests/".length(), startIndex);
+    }
+
+    @Test
+    public void testGetStartIndexWithAsteriskInside() throws Exception {
+        final String workspace = "/var/lib/jenkins/jobs/workspace";
+        final String folder = "tests/*/folder";
+
+        final String shouldBeCut = "/var/lib/jenkins/jobs/workspace/tests/";
+
+        int startIndex = FileHelper.getSearchPathLength(workspace, folder, false);
+        assertEquals(shouldBeCut.length(), startIndex);
+    }
+
+    @Test
+    public void testGetStartIndexWithoutAsterisk() throws Exception {
+        String workspace = "/var/lib/jenkins/jobs/workspace";
+        String folder = "tests/";
+
+        final String shouldBeCut = "/var/lib/jenkins/jobs/workspace/";
+
+        int startIndex = FileHelper.getSearchPathLength(workspace, folder, false);
+        assertEquals(shouldBeCut.length(), startIndex);
+    }
+
+    @Test
+    public void testGetStartIndexWithAsteriskButKeepStructure() throws Exception {
+        String workspace = "/var/lib/jenkins/jobs/workspace";
+        String folder = "tests/*";
+
+        final String shouldBeCut = "/var/lib/jenkins/jobs/workspace/";
+
+        int startIndex = FileHelper.getSearchPathLength(workspace, folder, true);
+        assertEquals(shouldBeCut.length(), startIndex);
+    }
+
+    @Test
+    public void testGetStartIndexWithAsteriskInsideButKeepStructure() throws Exception {
+        String workspace = "/var/lib/jenkins/jobs/workspace";
+        String folder = "tests/*/folder";
+
+        final String shouldBeCut = "/var/lib/jenkins/jobs/workspace/";
+
+        int startIndex = FileHelper.getSearchPathLength(workspace, folder, true);
+        assertEquals(shouldBeCut.length(), startIndex);
+    }
 }

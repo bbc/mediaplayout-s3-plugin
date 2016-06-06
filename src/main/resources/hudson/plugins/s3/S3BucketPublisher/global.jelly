@@ -39,6 +39,9 @@
               <f:number clazz="positive-number" name="s3.signedUrlExpirySeconds"
                         value="${profile.signedUrlExpirySeconds}" default="60" />
             </f:entry>
+            <f:entry title="Keep Structure" help="/plugin/s3/help-keepStructure.html">
+                <f:checkbox name="s3.keepStructure" value="${profile.keepStructure}" checked="${profile.keepStructure}"/>
+            </f:entry>
           </f:advanced>
 
           <f:entry title="">

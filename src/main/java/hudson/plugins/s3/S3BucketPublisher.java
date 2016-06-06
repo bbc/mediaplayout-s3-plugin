@@ -27,7 +27,6 @@ import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 
 import javax.annotation.Nonnull;
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.*;
@@ -169,7 +168,9 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                         }
 
                         paths.add(path);
-                        final int workspacePath = getSearchPathLength(ws.getRemote(), startPath.trim());
+                        final int workspacePath = FileHelper.getSearchPathLength(ws.getRemote(),
+                                startPath.trim(),
+                                getProfile().isKeepStructure());
                         filenames.add(getFilename(path, entry.flatten, workspacePath));
                         log(listener.getLogger(), "bucket=" + bucket + ", file=" + path.getName() + " region=" + selRegion + ", will be uploaded from slave=" + entry.uploadFromSlave + " managed=" + entry.managedArtifacts + " , server encryption " + entry.useServerSideEncryption);
                     }
@@ -209,25 +210,6 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             run.setResult(Result.UNSTABLE);
-        }
-    }
-
-    private int getSearchPathLength(String workSpace, String filterExpanded) {
-        final File file1 = new File(workSpace);
-        final File file2 = new File(file1, filterExpanded);
-
-        final String pathWithFilter = file2.getPath();
-
-        final int indexOfWildCard = pathWithFilter.indexOf('*');
-
-        if (indexOfWildCard > 0)
-        {
-            final String s = pathWithFilter.substring(0, indexOfWildCard);
-            return s.length();
-        }
-        else
-        {
-            return file2.getParent().length() + 1;
         }
     }
 
