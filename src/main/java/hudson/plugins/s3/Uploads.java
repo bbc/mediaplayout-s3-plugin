@@ -2,6 +2,7 @@ package hudson.plugins.s3;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
 import hudson.FilePath;
@@ -14,13 +15,21 @@ import java.util.logging.Logger;
 public final class Uploads {
     private Uploads() {}
     private static final Logger LOGGER = Logger.getLogger(Uploads.class.getName());
+    public static final int MULTIPART_UPLOAD_THRESHOLD = 10485760;
 
     private static transient volatile Uploads instance;
     private final transient HashMap<FilePath, Upload> startedUploads = new HashMap<>();
     private final transient HashMap<FilePath, InputStream> openedStreams = new HashMap<>();
 
     public void startUploading(TransferManager manager, FilePath file, InputStream inputsStream, String bucketName, String objectName, ObjectMetadata metadata) throws AmazonServiceException {
-        final Upload upload = manager.upload(bucketName, objectName, inputsStream, metadata);
+        final PutObjectRequest request = new PutObjectRequest(bucketName, objectName, inputsStream, metadata);
+
+        // Set the buffer size (ReadLimit) equal to the multipart upload size,
+        // allowing us to resend data if the connection breaks.
+        request.getRequestClientOptions().setReadLimit(MULTIPART_UPLOAD_THRESHOLD);
+        manager.getConfiguration().setMultipartUploadThreshold(MULTIPART_UPLOAD_THRESHOLD);
+
+        final Upload upload = manager.upload(request);
         startedUploads.put(file, upload);
         openedStreams.put(file, inputsStream);
     }
