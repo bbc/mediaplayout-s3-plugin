@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 public final class Uploads {
     private Uploads() {}
     private static final Logger LOGGER = Logger.getLogger(Uploads.class.getName());
-    public static final int MULTIPART_UPLOAD_THRESHOLD = 10485760;
+    private static final int MULTIPART_UPLOAD_THRESHOLD = 16*1024*1024; // 16 MB
 
     private static transient volatile Uploads instance;
     private final transient HashMap<FilePath, Upload> startedUploads = new HashMap<>();
@@ -27,7 +27,7 @@ public final class Uploads {
         // Set the buffer size (ReadLimit) equal to the multipart upload size,
         // allowing us to resend data if the connection breaks.
         request.getRequestClientOptions().setReadLimit(MULTIPART_UPLOAD_THRESHOLD);
-        manager.getConfiguration().setMultipartUploadThreshold(MULTIPART_UPLOAD_THRESHOLD);
+        manager.getConfiguration().setMultipartUploadThreshold( (long) MULTIPART_UPLOAD_THRESHOLD);
 
         final Upload upload = manager.upload(request);
         startedUploads.put(file, upload);
