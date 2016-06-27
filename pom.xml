@@ -20,7 +20,7 @@
 
     <artifactId>s3</artifactId>
     <packaging>hpi</packaging>
-    <version>0.10.6-SNAPSHOT</version>
+    <version>0.10.5.1</version>
     <name>Jenkins S3 publisher plugin</name>
     <url>https://wiki.jenkins-ci.org/display/JENKINS/S3+Plugin</url>
 
@@ -59,7 +59,7 @@
         <connection>scm:git:ssh://github.com/jenkinsci/s3-plugin.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/jenkinsci/s3-plugin.git</developerConnection>
         <url>https://github.com/jenkinsci/s3-plugin</url>
-        <tag>HEAD</tag>
+        <tag>s3-0.10.5.1</tag>
     </scm>
 
     <dependencies>
