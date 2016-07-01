@@ -74,18 +74,22 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         return this;
     }
 
+    @SuppressWarnings("unused")
     public List<Entry> getEntries() {
         return entries;
     }
 
+    @SuppressWarnings("unused")
     public List<MetadataPair> getUserMetadata() {
         return userMetadata;
     }
 
+    @SuppressWarnings("unused")
     public String getProfileName() {
         return this.profileName;
     }
 
+    @SuppressWarnings("unused")
     public boolean isDontWaitForConcurrentBuildCompletion() {
         return dontWaitForConcurrentBuildCompletion;
     }
@@ -120,6 +124,10 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     @Override
     public void perform(@Nonnull Run<?, ?> run, @Nonnull FilePath ws, @Nonnull Launcher launcher, @Nonnull TaskListener listener)
             throws InterruptedException {
+        if (Result.ABORTED.equals(run.getResult())) {
+            log(listener.getLogger(), "Skipping publishing on S3 because build aborted");
+            return;
+        }
 
         if (run.isBuilding()) {
             log(listener.getLogger(), "Build is still running");
@@ -133,11 +141,6 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             return;
         }
 
-        if (Result.ABORTED.equals(run.getResult())) {
-            // build aborted. don't post
-            log(listener.getLogger(), "Skipping publishing on S3 because build aborted");
-            return;
-        }
 
         log(listener.getLogger(), "Using S3 profile: " + profile.getName());
 
