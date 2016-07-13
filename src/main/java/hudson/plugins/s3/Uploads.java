@@ -36,6 +36,10 @@ public final class Uploads {
 
     public void finishUploading(FilePath filePath) throws InterruptedException {
         final Upload upload = startedUploads.remove(filePath);
+        if (upload == null) {
+            LOGGER.info("File: " + filePath.getName() + " already was uploaded");
+            return;
+        }
         try {
             upload.waitForCompletion();
         }
