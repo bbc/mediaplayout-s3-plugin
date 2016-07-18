@@ -124,25 +124,26 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     @Override
     public void perform(@Nonnull Run<?, ?> run, @Nonnull FilePath ws, @Nonnull Launcher launcher, @Nonnull TaskListener listener)
             throws InterruptedException {
+        final PrintStream console = listener.getLogger();
         if (Result.ABORTED.equals(run.getResult())) {
-            log(listener.getLogger(), "Skipping publishing on S3 because build aborted");
+            log(console, "Skipping publishing on S3 because build aborted");
             return;
         }
 
         if (run.isBuilding()) {
-            log(listener.getLogger(), "Build is still running");
+            log(console, "Build is still running");
         }
 
         final S3Profile profile = getProfile();
 
         if (profile == null) {
-            log(listener.getLogger(), "No S3 profile is configured.");
+            log(console, "No S3 profile is configured.");
             run.setResult(Result.UNSTABLE);
             return;
         }
 
 
-        log(listener.getLogger(), "Using S3 profile: " + profile.getName());
+        log(console, "Using S3 profile: " + profile.getName());
 
         try {
             final Map<String, String> envVars = run.getEnvironment(listener);
@@ -152,7 +153,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             for (Entry entry : entries) {
                 if (entry.noUploadOnFailure && Result.FAILURE.equals(run.getResult())) {
                     // build failed. don't post
-                    log(listener.getLogger(), "Skipping publishing on S3 because build failed");
+                    log(console, "Skipping publishing on S3 because build failed");
                     continue;
                 }
 
@@ -180,16 +181,24 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                                 startPath.trim(),
                                 getProfile().isKeepStructure());
                         filenames.add(getFilename(path, entry.flatten, workspacePath));
-                        log(listener.getLogger(), "bucket=" + bucket + ", file=" + path.getName() + " region=" + selRegion + ", will be uploaded from slave=" + entry.uploadFromSlave + " managed=" + entry.managedArtifacts + " , server encryption " + entry.useServerSideEncryption);
+                        log(console, "bucket=" + bucket + ", file=" + path.getName() + " region=" + selRegion + ", will be uploaded from slave=" + entry.uploadFromSlave + " managed=" + entry.managedArtifacts + " , server encryption " + entry.useServerSideEncryption);
                     }
                 }
 
                 if (paths.isEmpty()) {
                     // try to do error diagnostics
-                    log(listener.getLogger(), "No file(s) found: " + expanded);
-                    final String error = ws.validateAntFileMask(expanded, 100);
-                    if (error != null) {
-                        log(listener.getLogger(), error);
+                    log(console, "No file(s) found: " + expanded);
+                    try {
+                        final String error = ws.validateAntFileMask(expanded, 100);
+                        if (error != null) {
+                            log(console, error);
+                        }
+                    } catch (InterruptedException ignored) {
+                        // don't want to die here just because
+                        // validateAntFileMask found no alternative paths within
+                        // alloted bounds limit
+                    } finally {
+                        continue;
                     }
                 }
 
