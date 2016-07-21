@@ -186,20 +186,8 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 }
 
                 if (paths.isEmpty()) {
-                    // try to do error diagnostics
-                    log(console, "No file(s) found: " + expanded);
-                    try {
-                        final String error = ws.validateAntFileMask(expanded, 100);
-                        if (error != null) {
-                            log(console, error);
-                        }
-                    } catch (InterruptedException ignored) {
-                        // don't want to die here just because
-                        // validateAntFileMask found no alternative paths within
-                        // alloted bounds limit
-                    } finally {
-                        continue;
-                    }
+                    printDiagnostics(ws, console, expanded);
+                    continue;
                 }
 
 
@@ -227,6 +215,20 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         } catch (IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             run.setResult(Result.UNSTABLE);
+        }
+    }
+
+    private void printDiagnostics(@Nonnull FilePath ws, PrintStream console, String expanded) throws IOException {
+        log(console, "No file(s) found: " + expanded);
+        try {
+            final String error = ws.validateAntFileMask(expanded, 100);
+            if (error != null) {
+                log(console, error);
+            }
+        } catch (InterruptedException ignored) {
+            // don't want to die here just because
+            // validateAntFileMask found no alternative paths within
+            // alloted bounds limit
         }
     }
 
