@@ -42,6 +42,11 @@ public class FingerprintRecord implements Serializable {
     public String getName() {
         return artifact.getName();
     }
+    @Exported
+    public String getLink() {
+        //Chrome and IE convert backslash in the URL into forward slashes, need escape with %5c
+        return artifact.getName().replace("\\","%5C");
+    }
 
     @Exported
     public String getFingerprint() {
