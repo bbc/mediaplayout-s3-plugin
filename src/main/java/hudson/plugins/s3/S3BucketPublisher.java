@@ -109,7 +109,8 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             if (profile.getName().equals(profileName))
                 return profile;
         }
-        return null;
+
+        throw new IllegalArgumentException("Can't find profile: " + profileName);
     }
 
     @Override
@@ -199,6 +200,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 for (FingerprintRecord fingerprintRecord : fingerprints) {
                     records.add(fingerprintRecord);
                     fingerprintRecord.setKeepForever(entry.keepForever);
+                    fingerprintRecord.setShowDirectlyInBrowser(entry.showDirectlyInBrowser);
                 }
 
                 if (entry.managedArtifacts) {

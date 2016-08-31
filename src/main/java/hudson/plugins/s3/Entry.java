@@ -70,8 +70,12 @@ public final class Entry implements Describable<Entry> {
     /**
     * use GZIP to compress files
     */
-
     public boolean gzipFiles;
+
+    /**
+     * show content of entity directly in browser
+     */
+    public boolean showDirectlyInBrowser;
 
     /**
      * Don't delete artifacts in Amazon after job was rotated
@@ -88,7 +92,7 @@ public final class Entry implements Describable<Entry> {
     public Entry(String bucket, String sourceFile, String excludedFile, String storageClass, String selectedRegion,
                  boolean noUploadOnFailure, boolean uploadFromSlave, boolean managedArtifacts,
                  boolean useServerSideEncryption, boolean flatten, boolean gzipFiles, boolean keepForever,
-                 List<MetadataPair> userMetadata) {
+                 boolean showDirectlyInBrowser, List<MetadataPair> userMetadata) {
         this.bucket = bucket;
         this.sourceFile = sourceFile;
         this.excludedFile = excludedFile;
@@ -102,6 +106,7 @@ public final class Entry implements Describable<Entry> {
         this.gzipFiles = gzipFiles;
         this.keepForever = keepForever;
         this.userMetadata = userMetadata;
+        this.showDirectlyInBrowser = showDirectlyInBrowser;
     }
 
     @Override

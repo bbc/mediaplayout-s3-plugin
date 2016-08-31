@@ -17,12 +17,15 @@ public class FingerprintRecord implements Serializable {
     private final String md5sum;
     private final S3Artifact artifact;
     private boolean keepForever;
+    private boolean showDirectlyInBrowser;
 
 
     public FingerprintRecord(boolean produced, String bucket, String name, String region, String md5sum) {
         this.produced = produced;
         this.artifact = new S3Artifact(region, bucket, name);
         this.md5sum = md5sum;
+        this.showDirectlyInBrowser = false;
+        this.keepForever = false;
     }
 
     Fingerprint addRecord(Run<?, ?> run) throws IOException {
@@ -36,6 +39,14 @@ public class FingerprintRecord implements Serializable {
 
     public void setKeepForever(boolean keepForever) {
         this.keepForever = keepForever;
+    }
+
+    public boolean isShowDirectlyInBrowser() {
+        return showDirectlyInBrowser;
+    }
+
+    public void setShowDirectlyInBrowser(boolean showDirectlyInBrowser) {
+        this.showDirectlyInBrowser = showDirectlyInBrowser;
     }
 
     @Exported
