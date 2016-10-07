@@ -352,6 +352,12 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             return model;
         }
 
+        @SuppressWarnings("unused")
+        public void replaceProfiles(List<S3Profile> profiles) {
+            this.profiles.replaceBy(profiles);
+            save();
+        }
+
         public S3Profile[] getProfiles() {
             final S3Profile[] profileArray = new S3Profile[profiles.size()];
             return profiles.toArray(profileArray);
