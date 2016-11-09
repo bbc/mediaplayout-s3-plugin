@@ -43,6 +43,8 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
     private boolean dontWaitForConcurrentBuildCompletion;
 
+    private boolean suppressLogging;
+
     /**
      * User metadata key/value pairs to tag the upload with.
      */
@@ -50,7 +52,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
     @DataBoundConstructor
     public S3BucketPublisher(String profileName, List<Entry> entries, List<MetadataPair> userMetadata,
-                             boolean dontWaitForConcurrentBuildCompletion) {
+                             boolean dontWaitForConcurrentBuildCompletion, boolean suppressLogging) {
         if (profileName == null) {
             // defaults to the first one
             final S3Profile[] sites = DESCRIPTOR.getProfiles();
@@ -66,6 +68,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         this.userMetadata = userMetadata;
 
         this.dontWaitForConcurrentBuildCompletion = dontWaitForConcurrentBuildCompletion;
+        this.suppressLogging = suppressLogging;
     }
 
     protected Object readResolve() {
@@ -94,6 +97,11 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         return dontWaitForConcurrentBuildCompletion;
     }
 
+    @SuppressWarnings("unused")
+    public boolean isSuppressLogging() {
+        return suppressLogging;
+    }
+
     public S3Profile getProfile() {
         return getProfile(profileName);
     }
@@ -119,7 +127,9 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     }
 
     private void log(final PrintStream logger, final String message) {
-        logger.println(StringUtils.defaultString(getDescriptor().getDisplayName()) + ' ' + message);
+        if(! suppressLogging) {
+            logger.println(StringUtils.defaultString(getDescriptor().getDisplayName()) + ' ' + message);
+        }
     }
 
     @Override

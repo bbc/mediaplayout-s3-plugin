@@ -28,4 +28,8 @@
   <f:entry field="dontWaitForConcurrentBuildCompletion" title="">
     <f:checkbox title="Don't wait for completion of concurrent builds before publishing to S3" />
   </f:entry>
+
+  <f:entry field="suppressLogging" title="">
+    <f:checkbox title="Don't log to build console" />
+  </f:entry>
 </j:jelly>
