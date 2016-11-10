@@ -43,7 +43,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
     private boolean dontWaitForConcurrentBuildCompletion;
 
-    private boolean suppressLogging;
+    private Level consoleLogLevel;
 
     /**
      * User metadata key/value pairs to tag the upload with.
@@ -52,7 +52,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
     @DataBoundConstructor
     public S3BucketPublisher(String profileName, List<Entry> entries, List<MetadataPair> userMetadata,
-                             boolean dontWaitForConcurrentBuildCompletion, boolean suppressLogging) {
+                             boolean dontWaitForConcurrentBuildCompletion, String consoleLogLevel) {
         if (profileName == null) {
             // defaults to the first one
             final S3Profile[] sites = DESCRIPTOR.getProfiles();
@@ -68,7 +68,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         this.userMetadata = userMetadata;
 
         this.dontWaitForConcurrentBuildCompletion = dontWaitForConcurrentBuildCompletion;
-        this.suppressLogging = suppressLogging;
+        this.consoleLogLevel = Level.parse(consoleLogLevel);
     }
 
     protected Object readResolve() {
@@ -98,8 +98,8 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     }
 
     @SuppressWarnings("unused")
-    public boolean isSuppressLogging() {
-        return suppressLogging;
+    public Level getConsoleLogLevel() {
+        return consoleLogLevel;
     }
 
     public S3Profile getProfile() {
@@ -127,7 +127,11 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     }
 
     private void log(final PrintStream logger, final String message) {
-        if(! suppressLogging) {
+        log(Level.INFO, logger, message);
+    }
+
+    private void log(final Level level, final PrintStream logger, final String message) {
+        if(level.intValue() >= consoleLogLevel.intValue()) {
             logger.println(StringUtils.defaultString(getDescriptor().getDisplayName()) + ' ' + message);
         }
     }
@@ -137,7 +141,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             throws InterruptedException {
         final PrintStream console = listener.getLogger();
         if (Result.ABORTED.equals(run.getResult())) {
-            log(console, "Skipping publishing on S3 because build aborted");
+            log(Level.SEVERE, console, "Skipping publishing on S3 because build aborted");
             return;
         }
 
@@ -148,7 +152,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         final S3Profile profile = getProfile();
 
         if (profile == null) {
-            log(console, "No S3 profile is configured.");
+            log(Level.SEVERE, console, "No S3 profile is configured.");
             run.setResult(Result.UNSTABLE);
             return;
         }
@@ -164,7 +168,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             for (Entry entry : entries) {
                 if (entry.noUploadOnFailure && Result.FAILURE.equals(run.getResult())) {
                     // build failed. don't post
-                    log(console, "Skipping publishing on S3 because build failed");
+                    log(Level.WARNING, console, "Skipping publishing on S3 because build failed");
                     continue;
                 }
 
@@ -231,11 +235,11 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     }
 
     private void printDiagnostics(@Nonnull FilePath ws, PrintStream console, String expanded) throws IOException {
-        log(console, "No file(s) found: " + expanded);
+        log(Level.WARNING, console, "No file(s) found: " + expanded);
         try {
             final String error = ws.validateAntFileMask(expanded, 100);
             if (error != null) {
-                log(console, error);
+                log(Level.WARNING, console, error);
             }
         } catch (InterruptedException ignored) {
             // don't want to die here just because
@@ -316,6 +320,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
 
         private final CopyOnWriteList<S3Profile> profiles = new CopyOnWriteList<S3Profile>();
+        public static final Level[] consoleLogLevels = { Level.INFO, Level.WARNING, Level.SEVERE };
         private static final Logger LOGGER = Logger.getLogger(DescriptorImpl.class.getName());
 
         public DescriptorImpl(Class<? extends Publisher> clazz) {
@@ -362,10 +367,22 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             return model;
         }
 
+        public ListBoxModel doFillConsoleLogLevelItems() {
+            final ListBoxModel model = new ListBoxModel();
+            for (Level l : consoleLogLevels) {
+                model.add(l.getName(), l.getLocalizedName());
+            }
+            return model;
+        }
+
         @SuppressWarnings("unused")
         public void replaceProfiles(List<S3Profile> profiles) {
             this.profiles.replaceBy(profiles);
             save();
+        }
+
+        public Level[] getConsoleLogLevels() {
+            return consoleLogLevels;
         }
 
         public S3Profile[] getProfiles() {
