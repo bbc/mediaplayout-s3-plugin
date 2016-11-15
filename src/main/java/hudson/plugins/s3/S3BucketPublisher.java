@@ -45,7 +45,6 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
     private Level consoleLogLevel;
     private Result pluginFailureResultConstraint;
-
     /**
      * User metadata key/value pairs to tag the upload with.
      */
@@ -84,12 +83,17 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     protected Object readResolve() {
         if (userMetadata == null)
             userMetadata = new ArrayList<>();
+        if (pluginFailureResultConstraint == null)
+            pluginFailureResultConstraint = Result.FAILURE;
         return this;
     }
 
     private Result constrainResult(Result r, @Nonnull TaskListener listener) {
         final PrintStream console = listener.getLogger();
-        if (r.isWorseThan(pluginFailureResultConstraint)) {
+        // pass through NOT_BUILT and ABORTED
+        if (r.isWorseThan(Result.FAILURE)) {
+            return r;
+        } else if (r.isWorseThan(pluginFailureResultConstraint)) {
             log(console, "Build result constrained by configuration to: " + pluginFailureResultConstraint + " from: " + Result.UNSTABLE);
             return pluginFailureResultConstraint;
         }
@@ -113,7 +117,10 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
     @SuppressWarnings("unused")
     public Result getPluginFailureResultConstraint() {
-        return this.pluginFailureResultConstraint;
+        if (pluginFailureResultConstraint == null) {
+            return Result.FAILURE;
+        }
+        return pluginFailureResultConstraint;
     }
 
     @SuppressWarnings("unused")
@@ -346,7 +353,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         private final CopyOnWriteList<S3Profile> profiles = new CopyOnWriteList<S3Profile>();
         public static final Level[] consoleLogLevels = { Level.INFO, Level.WARNING, Level.SEVERE };
         private static final Logger LOGGER = Logger.getLogger(DescriptorImpl.class.getName());
-        private static final Result[] pluginFailureResultConstraints = { Result.SUCCESS, Result.UNSTABLE, Result.FAILURE };
+        private static final Result[] pluginFailureResultConstraints = { Result.FAILURE, Result.UNSTABLE, Result.SUCCESS };
 
         public DescriptorImpl(Class<? extends Publisher> clazz) {
             super(clazz);
