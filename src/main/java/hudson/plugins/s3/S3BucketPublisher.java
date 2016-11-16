@@ -1,6 +1,6 @@
 package hudson.plugins.s3;
 
-import com.amazonaws.AmazonServiceException;
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.common.collect.ImmutableList;
@@ -259,7 +259,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 run.addAction(new S3ArtifactsAction(run, profile, artifacts));
                 run.addAction(new FingerprintAction(run, record));
             }
-        } catch (Exception e) { // Any failure in this plugin should be constrained according to config
+        } catch (AmazonClientException|IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
             run.setResult(constrainResult(Result.UNSTABLE, listener));
         }
@@ -463,7 +463,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
             try {
                 client.listBuckets();
-            } catch (AmazonServiceException e) {
+            } catch (AmazonClientException e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error("Can't connect to S3 service: " + e.getMessage());
             }
