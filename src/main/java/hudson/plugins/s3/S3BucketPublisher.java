@@ -1,6 +1,6 @@
 package hudson.plugins.s3;
 
-import com.amazonaws.AmazonServiceException;
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.common.collect.ImmutableList;
@@ -44,7 +44,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     private boolean dontWaitForConcurrentBuildCompletion;
 
     private Level consoleLogLevel;
-
+    private Result pluginFailureResultConstraint;
     /**
      * User metadata key/value pairs to tag the upload with.
      */
@@ -52,7 +52,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
     @DataBoundConstructor
     public S3BucketPublisher(String profileName, List<Entry> entries, List<MetadataPair> userMetadata,
-                             boolean dontWaitForConcurrentBuildCompletion, String consoleLogLevel) {
+                             boolean dontWaitForConcurrentBuildCompletion, String consoleLogLevel, String pluginFailureResultConstraint) {
         if (profileName == null) {
             // defaults to the first one
             final S3Profile[] sites = DESCRIPTOR.getProfiles();
@@ -69,6 +69,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
         this.dontWaitForConcurrentBuildCompletion = dontWaitForConcurrentBuildCompletion;
         this.consoleLogLevel = parseLevel(consoleLogLevel);
+        this.pluginFailureResultConstraint = Result.fromString(pluginFailureResultConstraint);
     }
 
     private Level parseLevel(String lvl) {
@@ -82,7 +83,21 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     protected Object readResolve() {
         if (userMetadata == null)
             userMetadata = new ArrayList<>();
+        if (pluginFailureResultConstraint == null)
+            pluginFailureResultConstraint = Result.FAILURE;
         return this;
+    }
+
+    private Result constrainResult(Result r, @Nonnull TaskListener listener) {
+        final PrintStream console = listener.getLogger();
+        // pass through NOT_BUILT and ABORTED
+        if (r.isWorseThan(Result.FAILURE)) {
+            return r;
+        } else if (r.isWorseThan(pluginFailureResultConstraint)) {
+            log(console, "Build result constrained by configuration to: " + pluginFailureResultConstraint + " from: " + Result.UNSTABLE);
+            return pluginFailureResultConstraint;
+        }
+        return r;
     }
 
     @SuppressWarnings("unused")
@@ -98,6 +113,14 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     @SuppressWarnings("unused")
     public String getProfileName() {
         return this.profileName;
+    }
+
+    @SuppressWarnings("unused")
+    public Result getPluginFailureResultConstraint() {
+        if (pluginFailureResultConstraint == null) {
+            return Result.FAILURE;
+        }
+        return pluginFailureResultConstraint;
     }
 
     @SuppressWarnings("unused")
@@ -161,7 +184,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
         if (profile == null) {
             log(Level.SEVERE, console, "No S3 profile is configured.");
-            run.setResult(Result.UNSTABLE);
+            run.setResult(constrainResult(Result.UNSTABLE, listener));
             return;
         }
 
@@ -236,9 +259,9 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 run.addAction(new S3ArtifactsAction(run, profile, artifacts));
                 run.addAction(new FingerprintAction(run, record));
             }
-        } catch (IOException e) {
+        } catch (AmazonClientException|IOException e) {
             e.printStackTrace(listener.error("Failed to upload files"));
-            run.setResult(Result.UNSTABLE);
+            run.setResult(constrainResult(Result.UNSTABLE, listener));
         }
     }
 
@@ -330,6 +353,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         private final CopyOnWriteList<S3Profile> profiles = new CopyOnWriteList<S3Profile>();
         public static final Level[] consoleLogLevels = { Level.INFO, Level.WARNING, Level.SEVERE };
         private static final Logger LOGGER = Logger.getLogger(DescriptorImpl.class.getName());
+        private static final Result[] pluginFailureResultConstraints = { Result.FAILURE, Result.UNSTABLE, Result.SUCCESS };
 
         public DescriptorImpl(Class<? extends Publisher> clazz) {
             super(clazz);
@@ -384,6 +408,15 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         }
 
         @SuppressWarnings("unused")
+        public ListBoxModel doFillPluginFailureResultConstraintItems() {
+            final ListBoxModel model = new ListBoxModel();
+            for (Result r : pluginFailureResultConstraints) {
+                model.add(r.toString(), r.toString());
+            }
+            return model;
+        }
+
+        @SuppressWarnings("unused")
         public void replaceProfiles(List<S3Profile> profiles) {
             this.profiles.replaceBy(profiles);
             save();
@@ -396,6 +429,10 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         public S3Profile[] getProfiles() {
             final S3Profile[] profileArray = new S3Profile[profiles.size()];
             return profiles.toArray(profileArray);
+        }
+
+        public Result[] getPluginFailureResultConstraints() {
+            return pluginFailureResultConstraints;
         }
 
         @SuppressWarnings("unused")
@@ -426,7 +463,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
             try {
                 client.listBuckets();
-            } catch (AmazonServiceException e) {
+            } catch (AmazonClientException e) {
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error("Can't connect to S3 service: " + e.getMessage());
             }
