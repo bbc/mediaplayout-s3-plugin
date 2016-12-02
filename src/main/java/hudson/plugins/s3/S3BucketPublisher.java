@@ -83,8 +83,13 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     protected Object readResolve() {
         if (userMetadata == null)
             userMetadata = new ArrayList<>();
+
         if (pluginFailureResultConstraint == null)
             pluginFailureResultConstraint = Result.FAILURE;
+
+        if(consoleLogLevel==null)
+            consoleLogLevel = Level.INFO;
+
         return this;
     }
 
