@@ -66,6 +66,10 @@ public class S3ArtifactsAction implements RunAction2 {
         return artifacts;
     }
 
+    public void addArtifacts(List<FingerprintRecord> artifacts) {
+        this.artifacts.addAll(artifacts);
+    }
+
     public void doDownload(final StaplerRequest request, final StaplerResponse response) throws IOException, ServletException {
         final String restOfPath = request.getRestOfPath();
         if (restOfPath == null) {
