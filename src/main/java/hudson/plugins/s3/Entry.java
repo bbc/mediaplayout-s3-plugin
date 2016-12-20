@@ -26,9 +26,9 @@ public final class Entry implements Describable<Entry> {
      */
     public String excludedFile;
     /**
-     * options for x-amz-storage-class can be STANDARD or REDUCED_REDUNDANCY
+     * options for x-amz-storage-class can be STANDARD, STANDARD_IA, or REDUCED_REDUNDANCY
      */
-    public static final String[] storageClasses = {"STANDARD", "REDUCED_REDUNDANCY"};
+    public static final String[] storageClasses = {"STANDARD", "STANDARD_IA", "REDUCED_REDUNDANCY"};
     /**
      * what x-amz-storage-class is currently set
      */
