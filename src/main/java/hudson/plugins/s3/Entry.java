@@ -2,7 +2,6 @@ package hudson.plugins.s3;
 
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import hudson.Extension;
 import hudson.model.Describable;

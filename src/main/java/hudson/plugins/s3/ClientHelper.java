@@ -11,6 +11,9 @@ import hudson.ProxyConfiguration;
 
 import java.util.regex.Pattern;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 public class ClientHelper {
 
     public static String DEFAULT_AMAZON_S3_REGION_NAME = System.getProperty(
@@ -44,13 +47,22 @@ public class ClientHelper {
     }
 
     /**
+     * Gets the {@link Region} from its name with backward compatibility concerns and defaulting
      *
      * @param regionName nullable region name
      * @return AWS region, never {@code null}, defaults to {@link com.amazonaws.services.s3.model.Region#US_Standard}
      */
-    private static Region getRegionFromString(String regionName) {
+    @Nonnull
+    private static Region getRegionFromString(@Nullable String regionName) {
+        Region region = null;
+
+        if (regionName == null || regionName.isEmpty()) {
+            region = RegionUtils.getRegion(DEFAULT_AMAZON_S3_REGION_NAME);
+        }
         // In 0.7, selregion comes from Regions#name
-        Region region = RegionUtils.getRegion(regionName);
+        if (region == null) {
+            region = RegionUtils.getRegion(regionName);
+        }
 
         // In 0.6, selregion comes from Regions#valueOf
         if (region == null) {
@@ -60,10 +72,15 @@ public class ClientHelper {
         if (region == null) {
             region = RegionUtils.getRegion(DEFAULT_AMAZON_S3_REGION_NAME);
         }
+
+        if (region == null) {
+            throw new IllegalStateException("No AWS Region found for name '" + regionName + "' and default region '" + DEFAULT_AMAZON_S3_REGION_NAME + "'");
+        }
         return region;
     }
 
-    public static ClientConfiguration getClientConfiguration(ProxyConfiguration proxy, Region region) {
+    @Nonnull
+    public static ClientConfiguration getClientConfiguration(@Nonnull ProxyConfiguration proxy, @Nonnull Region region) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration();
 
         String s3Endpoint = region.getServiceEndpoint(AmazonS3.ENDPOINT_PREFIX);
