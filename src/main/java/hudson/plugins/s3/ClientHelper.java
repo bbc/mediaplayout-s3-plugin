@@ -5,35 +5,49 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import hudson.ProxyConfiguration;
 
 import java.util.regex.Pattern;
 
 public class ClientHelper {
+
+    public static String DEFAULT_AMAZON_S3_REGION_NAME = System.getProperty(
+            "hudson.plugins.s3.DEFAULT_AMAZON_S3_REGION",
+            com.amazonaws.services.s3.model.Region.US_Standard.toAWSRegion().getName());
+
+    /**
+     * This method should be deprecated to always use an AWS region with {@link #createClient(String, String, boolean, String, ProxyConfiguration)}
+     */
     public static AmazonS3Client createClient(String accessKey, String secretKey, boolean useRole, ProxyConfiguration proxy)
     {
-        return createClient(accessKey, secretKey, useRole, null, proxy);
+        return createClient(accessKey, secretKey, useRole, DEFAULT_AMAZON_S3_REGION_NAME, proxy);
     }
 
     public static AmazonS3Client createClient(String accessKey, String secretKey, boolean useRole, String region, ProxyConfiguration proxy)
     {
+        Region awsRegion = getRegionFromString(region);
+
+        ClientConfiguration clientConfiguration = getClientConfiguration(proxy, awsRegion);
+
         final AmazonS3Client client;
-
         if (useRole) {
-            client = new AmazonS3Client(getClientConfiguration(proxy));
+            client = new AmazonS3Client(clientConfiguration);
         } else {
-            client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), getClientConfiguration(proxy));
+            client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), clientConfiguration);
         }
 
-        if (region != null)
-        {
-            client.setRegion(getRegionFromString(region));
-        }
+        client.setRegion(awsRegion);
 
         return client;
     }
 
+    /**
+     *
+     * @param regionName nullable region name
+     * @return AWS region, never {@code null}, defaults to {@link com.amazonaws.services.s3.model.Region#US_Standard}
+     */
     private static Region getRegionFromString(String regionName) {
         // In 0.7, selregion comes from Regions#name
         Region region = RegionUtils.getRegion(regionName);
@@ -43,13 +57,18 @@ public class ClientHelper {
             region = RegionUtils.getRegion(Regions.valueOf(regionName).getName());
         }
 
+        if (region == null) {
+            region = RegionUtils.getRegion(DEFAULT_AMAZON_S3_REGION_NAME);
+        }
         return region;
     }
 
-    public static ClientConfiguration getClientConfiguration(ProxyConfiguration proxy) {
+    public static ClientConfiguration getClientConfiguration(ProxyConfiguration proxy, Region region) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration();
 
-        if (shouldUseProxy(proxy, "s3.amazonaws.com")) {
+        String s3Endpoint = region.getServiceEndpoint(AmazonS3.ENDPOINT_PREFIX);
+
+        if (shouldUseProxy(proxy, s3Endpoint)) {
             clientConfiguration.setProxyHost(proxy.name);
             clientConfiguration.setProxyPort(proxy.port);
             if (proxy.getUserName() != null) {

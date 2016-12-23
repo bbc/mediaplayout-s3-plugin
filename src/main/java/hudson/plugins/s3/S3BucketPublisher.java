@@ -1,7 +1,7 @@
 package hudson.plugins.s3;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.regions.Regions;
+import com.amazonaws.regions.Region;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -365,7 +365,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             load();
         }
 
-        public Regions[] regions = Entry.regions;
+        public List<Region> regions = Entry.regions;
 
         public String[] storageClasses = Entry.storageClasses;
 
