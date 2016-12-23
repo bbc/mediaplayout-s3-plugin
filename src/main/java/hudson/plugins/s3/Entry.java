@@ -1,6 +1,8 @@
 package hudson.plugins.s3;
 
-import com.amazonaws.regions.Regions;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.RegionUtils;
+import com.amazonaws.services.s3.AmazonS3;
 import hudson.Extension;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
@@ -36,7 +38,7 @@ public final class Entry implements Describable<Entry> {
     /**
      * Regions Values
      */
-    public static final Regions[] regions = Regions.values();
+    public static final List<Region> regions = RegionUtils.getRegionsForService(AmazonS3.ENDPOINT_PREFIX);
     /**
      * Stores the Region Value
      */
@@ -134,7 +136,7 @@ public final class Entry implements Describable<Entry> {
 
         public ListBoxModel doFillSelectedRegionItems() {
             final ListBoxModel model = new ListBoxModel();
-            for (Regions r : regions) {
+            for (Region r : regions) {
                 model.add(r.getName(), r.getName());
             }
             return model;
