@@ -273,7 +273,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
     private void addS3ArtifactsAction(Run<?, ?> run, S3Profile profile, List<FingerprintRecord> artifacts) {
         S3ArtifactsAction existingAction = run.getAction(S3ArtifactsAction.class);
         if (existingAction != null) {
-            existingAction.addArtifacts(artifacts);
+            existingAction.getArtifacts().addAll(artifacts);
         } else {
             run.addAction(new S3ArtifactsAction(run, profile, artifacts));
         }
