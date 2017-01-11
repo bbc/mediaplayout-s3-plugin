@@ -69,10 +69,16 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
         this.dontWaitForConcurrentBuildCompletion = dontWaitForConcurrentBuildCompletion;
         this.consoleLogLevel = parseLevel(consoleLogLevel);
-        this.pluginFailureResultConstraint = Result.fromString(pluginFailureResultConstraint);
+        if (pluginFailureResultConstraint == null) {
+            this.pluginFailureResultConstraint = Result.FAILURE;
+        } else {
+            this.pluginFailureResultConstraint = Result.fromString(pluginFailureResultConstraint);
+        }
     }
 
     private Level parseLevel(String lvl) {
+        if (lvl == null)
+            lvl = "";
         switch (lvl) {
         case "WARNING": return Level.WARNING;
         case "SEVERE":  return Level.SEVERE;
