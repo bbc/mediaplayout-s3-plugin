@@ -1,3 +1,4 @@
+[![Build Status](https://jenkins.ci.cloudbees.com/buildStatus/icon?job=plugins/s3-plugin)](https://jenkins.ci.cloudbees.com/job/plugins/job/s3-plugin/)
 
 Install
 =======
