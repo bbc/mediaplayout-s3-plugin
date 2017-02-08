@@ -21,7 +21,7 @@ public final class Uploads {
     private final transient HashMap<FilePath, Upload> startedUploads = new HashMap<>();
     private final transient HashMap<FilePath, InputStream> openedStreams = new HashMap<>();
 
-    public void startUploading(TransferManager manager, FilePath file, InputStream inputsStream, String bucketName, String objectName, ObjectMetadata metadata) throws AmazonServiceException {
+    public Upload startUploading(TransferManager manager, FilePath file, InputStream inputsStream, String bucketName, String objectName, ObjectMetadata metadata) throws AmazonServiceException {
         final PutObjectRequest request = new PutObjectRequest(bucketName, objectName, inputsStream, metadata);
 
         // Set the buffer size (ReadLimit) equal to the multipart upload size,
@@ -32,6 +32,7 @@ public final class Uploads {
         final Upload upload = manager.upload(request);
         startedUploads.put(file, upload);
         openedStreams.put(file, inputsStream);
+        return upload;
     }
 
     public void finishUploading(FilePath filePath) throws InterruptedException {
