@@ -1,6 +1,9 @@
 package hudson.plugins.s3.callable;
 
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.transfer.Upload;
+import com.amazonaws.event.ProgressListener;
+import com.amazonaws.event.ProgressEvent;
 import hudson.FilePath;
 import hudson.ProxyConfiguration;
 import hudson.plugins.s3.Destination;
@@ -18,10 +21,9 @@ public final class S3GzipCallable extends S3BaseUploadCallable implements Master
         super(accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion, useServerSideEncryption, proxy);
     }
 
-    @Override
-    public String invoke(FilePath file) throws IOException, InterruptedException {
+    // Return a File containing the gzipped contents of the input file.
+    private File gzipFile(FilePath file) throws IOException, InterruptedException {
         final File localFile = File.createTempFile("s3plugin", ".bin");
-
         try (InputStream inputStream = file.read()) {
             try (OutputStream outputStream = new FileOutputStream(localFile)) {
                 try (OutputStream gzipStream = new GZIPOutputStream(outputStream, true)) {
@@ -29,15 +31,60 @@ public final class S3GzipCallable extends S3BaseUploadCallable implements Master
                     gzipStream.flush();
                 }
             }
+        } catch (Exception ex) {
+            localFile.delete();
+            throw ex;
+        }
+        return localFile;
+    }
+
+    // Hook to ensure that the file is deleted once the upload finishes.
+    private class CleanupHook implements ProgressListener {
+        private final File localFile;
+
+        CleanupHook(File localFile) {
+            this.localFile = localFile;
         }
 
-        final InputStream gzipedStream = new FileInputStream(localFile);
-        final ObjectMetadata metadata = buildMetadata(file);
-        metadata.setContentEncoding("gzip");
-        metadata.setContentLength(localFile.length());
+        @Override
+        public void progressChanged(ProgressEvent event) {
+            switch (event.getEventType()) {
+            case TRANSFER_CANCELED_EVENT:
+            case TRANSFER_COMPLETED_EVENT:
+            case TRANSFER_FAILED_EVENT:
+                localFile.delete();
+            }
+        }
+    }
 
-        Uploads.getInstance().startUploading(getTransferManager(), file, gzipedStream, getDest().bucketName, getDest().objectName, metadata);
+    @Override
+    public String invoke(FilePath file) throws IOException, InterruptedException {
+        final File localFile = gzipFile(file);
+        Upload upload = null;
 
-        return MD5.generateFromFile(localFile);
+        try {
+            final InputStream gzipedStream = new FileInputStream(localFile);
+            final ObjectMetadata metadata = buildMetadata(file);
+            metadata.setContentEncoding("gzip");
+            metadata.setContentLength(localFile.length());
+
+            upload = Uploads.getInstance().startUploading(getTransferManager(), file, gzipedStream, getDest().bucketName, getDest().objectName, metadata);
+
+            String md5 = MD5.generateFromFile(localFile);
+
+            // Add the cleanup hook only after we have the MD5,
+            // because the hook might delete the file immediately.
+            upload.addProgressListener(new CleanupHook(localFile));
+
+            return md5;
+        } finally {
+            // The upload might have finished before we installed the progress listener.
+            if (upload == null || upload.isDone()) {
+                // The progress listener might have fired before this,
+                // but .delete() on non-existent path is ok, and the
+                // temporary name won't be reused by anything
+                localFile.delete();
+            }
+        }
     }
 }
