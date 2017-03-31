@@ -213,7 +213,8 @@ public class S3Profile {
 
         final ListObjectsRequest listObjectsRequest = new ListObjectsRequest()
         .withBucketName(dest.bucketName)
-        .withPrefix(dest.objectName);
+        .withPrefix(dest.objectName)
+        .withEncodingType("url");
 
         final List<String> files = Lists.newArrayList();
 
