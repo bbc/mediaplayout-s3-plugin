@@ -488,7 +488,9 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                     return FormValidation.ok("Please, enter secretKey");
             }
 
-            final AmazonS3Client client = ClientHelper.createClient(accessKey, secretKey, useRole, Jenkins.getActiveInstance().proxy);
+            final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
+            final AmazonS3Client client = ClientHelper.createClient(
+                    accessKey, secretKey, useRole, defaultRegion, Jenkins.getActiveInstance().proxy);
 
             try {
                 client.listBuckets();

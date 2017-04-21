@@ -2,10 +2,8 @@ package hudson.plugins.s3;
 
 import hudson.FilePath;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -19,11 +17,9 @@ import org.kohsuke.stapler.DataBoundConstructor;
 
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
-import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ResponseHeaderOverrides;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.collect.Lists;
 
@@ -38,7 +34,6 @@ public class S3Profile {
     private final int uploadRetryTime;
     private final int maxDownloadRetries;
     private final int downloadRetryTime;
-    private transient volatile AmazonS3Client client;
     private final boolean keepStructure;
 
     private final boolean useRole;
@@ -116,11 +111,8 @@ public class S3Profile {
         return signedUrlExpirySeconds;
     }
 
-    public AmazonS3Client getClient() {
-        if (client == null) {
-            client = ClientHelper.createClient(accessKey, Secret.toString(secretKey), useRole, getProxy());
-        }
-        return client;
+    public AmazonS3Client getClient(String region) {
+        return ClientHelper.createClient(accessKey, Secret.toString(secretKey), useRole, region, getProxy());
     }
 
     public List<FingerprintRecord> upload(Run<?, ?> run,
@@ -205,7 +197,7 @@ public class S3Profile {
     }
 
     public List<String> list(Run build, String bucket) {
-        final AmazonS3Client s3client = getClient();
+        final AmazonS3Client s3client = getClient(ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME);
 
         final String buildName = build.getDisplayName();
         final int buildID = build.getNumber();
@@ -289,7 +281,8 @@ public class S3Profile {
       public void delete(Run run, FingerprintRecord record) {
           final Destination dest = Destination.newFromRun(run, record.getArtifact());
           final DeleteObjectRequest req = new DeleteObjectRequest(dest.bucketName, dest.objectName);
-          getClient().deleteObject(req);
+          final AmazonS3Client client = getClient(record.getArtifact().getRegion());
+          client.deleteObject(req);
       }
 
     @Override

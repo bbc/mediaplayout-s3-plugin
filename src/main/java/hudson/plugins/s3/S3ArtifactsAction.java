@@ -77,7 +77,8 @@ public class S3ArtifactsAction implements RunAction2 {
         for (FingerprintRecord record : artifacts) {
             if (record.getArtifact().getName().equals(artifact)) {
                 final S3Profile s3 = S3BucketPublisher.getProfile(profile);
-                final String url = getDownloadURL(s3.getClient(), s3.getSignedUrlExpirySeconds(), build, record);
+                final AmazonS3Client client = s3.getClient(record.getArtifact().getRegion());
+                final String url = getDownloadURL(client, s3.getSignedUrlExpirySeconds(), build, record);
                 response.sendRedirect2(url);
                 return;
             }

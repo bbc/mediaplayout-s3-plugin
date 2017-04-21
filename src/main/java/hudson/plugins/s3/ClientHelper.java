@@ -15,18 +15,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 public class ClientHelper {
-
-    public static String DEFAULT_AMAZON_S3_REGION_NAME = System.getProperty(
+    public final static String DEFAULT_AMAZON_S3_REGION_NAME = System.getProperty(
             "hudson.plugins.s3.DEFAULT_AMAZON_S3_REGION",
             com.amazonaws.services.s3.model.Region.US_Standard.toAWSRegion().getName());
-
-    /**
-     * This method should be deprecated to always use an AWS region with {@link #createClient(String, String, boolean, String, ProxyConfiguration)}
-     */
-    public static AmazonS3Client createClient(String accessKey, String secretKey, boolean useRole, ProxyConfiguration proxy)
-    {
-        return createClient(accessKey, secretKey, useRole, DEFAULT_AMAZON_S3_REGION_NAME, proxy);
-    }
 
     public static AmazonS3Client createClient(String accessKey, String secretKey, boolean useRole, String region, ProxyConfiguration proxy)
     {
