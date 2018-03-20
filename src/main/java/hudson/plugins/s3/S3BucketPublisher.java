@@ -12,6 +12,7 @@ import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import hudson.Extension;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Nonnull;
+import javax.servlet.ServletException;
 
 public final class S3BucketPublisher extends Recorder implements SimpleBuildStep {
 
@@ -487,6 +489,20 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
         public Result[] getPluginFailureResultConstraints() {
             return pluginFailureResultConstraints;
+        }
+
+        @SuppressWarnings("unused")
+        public FormValidation doCheckAssumeRole(@QueryParameter String value) throws IOException, ServletException {
+            final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
+            final AmazonS3 client = new ClientHelper.Builder(defaultRegion, Jenkins.getActiveInstance().proxy).build(value);
+
+            try {
+                client.listBuckets();
+            } catch (AmazonClientException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                return FormValidation.error("Cannot list buckets from S3: " + e.getMessage());
+            }
+            return FormValidation.ok("Successfully assumed role: " + value);
         }
 
         @SuppressWarnings("unused")

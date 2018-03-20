@@ -11,7 +11,7 @@
           <f:entry title="Use IAM Role" help="/plugin/s3/help-role.html">
             <f:checkbox name="s3.useRole" value="${profile.useRole}" checked="${profile.useRole}"/>
           </f:entry>
-          <f:entry title="Assume IAM Role" help="/plugin/s3/help-assumeRole.html">
+          <f:entry title="Assume IAM Role" help="/plugin/s3/help-assumeRole.html" field="assumeRole">
             <f:textbox name="s3.assumeRole" value="${profile.assumeRole}"/>
           </f:entry>
           <f:entry title="Access key" help="/plugin/s3/help-accesskey.html">
