@@ -38,7 +38,7 @@ public class S3Test {
 
     @Test
     public void testConfigContainsProfiles() throws Exception {
-        final S3Profile profile = new S3Profile("S3 profile random name", null, null, true, 0, "0", "0", "0", "0", true);
+        final S3Profile profile = new S3Profile("S3 profile random name", null, null, true, null, 0, "0", "0", "0", "0", true);
 
         replaceS3PluginProfile(profile);
 
