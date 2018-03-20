@@ -30,16 +30,11 @@ public class ClientHelper {
 
         final AmazonS3 client;
         if (assumeRole != null) {
-            client = AmazonS3Client.builder()
-                .withCredentials(new STSAssumeRoleSessionCredentialsProvider.Builder(assumeRole, "jenkins-s3-plugin").build())
-                .build();
+            client = new AmazonS3Client(new STSAssumeRoleSessionCredentialsProvider.Builder(assumeRole, "jenkins-s3-plugin").build());
         } else if (useRole) {
-            client = AmazonS3Client.builder()
-                .withClientConfiguration(clientConfiguration).build();
+            client = new AmazonS3Client(clientConfiguration);
         } else {
-            client = AmazonS3Client.builder()
-                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)))
-                .withClientConfiguration(clientConfiguration).build();
+            client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), clientConfiguration);
         }
 
         client.setRegion(awsRegion);

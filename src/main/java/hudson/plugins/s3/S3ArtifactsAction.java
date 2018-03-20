@@ -3,7 +3,6 @@ package hudson.plugins.s3;
 import static javax.servlet.http.HttpServletResponse.SC_NOT_FOUND;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ResponseHeaderOverrides;
 import org.kohsuke.stapler.StaplerRequest;
