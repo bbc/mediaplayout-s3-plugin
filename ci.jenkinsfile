@@ -6,5 +6,7 @@ node('dev_mesos') {
   checkout scm
 
   serviceBuild.runMavenGoals('clean verify')
+
+  archiveArtifacts 'target/s3.hpi'
 }
 
