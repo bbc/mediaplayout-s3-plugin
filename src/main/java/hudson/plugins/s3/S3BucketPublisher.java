@@ -1,13 +1,30 @@
 package hudson.plugins.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.regions.Region;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import hudson.*;
-import hudson.model.*;
+
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.regions.Region;
+import com.amazonaws.services.s3.AmazonS3;
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+import org.apache.commons.lang.StringUtils;
+import org.jenkinsci.Symbol;
+import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerResponse;
+import hudson.Extension;
+import hudson.FilePath;
+import hudson.Launcher;
+import hudson.Util;
+import hudson.model.AbstractProject;
+import hudson.model.Action;
+import hudson.model.Fingerprint;
+import hudson.model.Result;
+import hudson.model.Run;
+import hudson.model.TaskListener;
 import hudson.model.listeners.RunListener;
 import hudson.tasks.BuildStepDescriptor;
 import hudson.tasks.BuildStepMonitor;
@@ -19,20 +36,18 @@ import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
-import net.sf.json.JSONArray;
-import net.sf.json.JSONObject;
-import org.apache.commons.lang.StringUtils;
-import org.jenkinsci.Symbol;
-import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.annotation.Nonnull;
+import javax.servlet.ServletException;
 
 public final class S3BucketPublisher extends Recorder implements SimpleBuildStep {
 
@@ -477,6 +492,20 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         }
 
         @SuppressWarnings("unused")
+        public FormValidation doCheckAssumeRole(@QueryParameter String value) throws IOException, ServletException {
+            final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
+            final AmazonS3 client = new ClientHelper.Builder(defaultRegion, Jenkins.getActiveInstance().proxy).build(value);
+
+            try {
+                client.listBuckets();
+            } catch (AmazonClientException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                return FormValidation.error("Cannot list buckets from S3: " + e.getMessage());
+            }
+            return FormValidation.ok("Successfully assumed role: " + value);
+        }
+
+        @SuppressWarnings("unused")
         public FormValidation doLoginCheck(final StaplerRequest req, StaplerResponse rsp) {
             final String name = Util.fixNull(req.getParameter("name"));
             final String accessKey = Util.fixNull(req.getParameter("accessKey"));
@@ -485,6 +514,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
             final boolean couldBeValidated = !name.isEmpty() && !accessKey.isEmpty() && !secretKey.isEmpty();
             final boolean useRole = Boolean.parseBoolean(useIAMCredential);
+            final String assumeRole = req.getParameter("assumeRole");
 
             if (!couldBeValidated) {
                 if (name.isEmpty())
@@ -501,8 +531,8 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             }
 
             final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
-            final AmazonS3Client client = ClientHelper.createClient(
-                    accessKey, secretKey, useRole, defaultRegion, Jenkins.getActiveInstance().proxy);
+            final AmazonS3 client = ClientHelper.createClient(
+                    accessKey, secretKey, useRole, assumeRole, defaultRegion, Jenkins.getActiveInstance().proxy);
 
             try {
                 client.listBuckets();

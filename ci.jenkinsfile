@@ -1,0 +1,10 @@
+@Library('pipeline-library@master')
+import com.genesys.jenkins.Service
+
+node('dev_mesos') {
+  final serviceBuild = new com.genesys.jenkins.Service()
+  checkout scm
+
+  serviceBuild.runMavenGoals('clean verify')
+}
+
