@@ -11,6 +11,7 @@ import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import org.apache.commons.lang.StringUtils;
 import hudson.ProxyConfiguration;
 
 import java.util.regex.Pattern;
@@ -76,7 +77,7 @@ public class ClientHelper {
         Builder builder = new Builder(region, proxy);
 
         final AmazonS3 client;
-        if (assumeRole != null) {
+        if (StringUtils.isNotEmpty(assumeRole)) {
             client = builder.build(assumeRole);
         } else if (useRole) {
             client = builder.build();

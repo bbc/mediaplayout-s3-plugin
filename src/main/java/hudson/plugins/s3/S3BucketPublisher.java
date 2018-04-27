@@ -493,6 +493,10 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
         @SuppressWarnings("unused")
         public FormValidation doCheckAssumeRole(@QueryParameter String value) throws IOException, ServletException {
+            if(StringUtils.isEmpty(value)) {
+                return FormValidation.ok();
+            }
+
             final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
             final AmazonS3 client = new ClientHelper.Builder(defaultRegion, Jenkins.getActiveInstance().proxy).build(value);
 
