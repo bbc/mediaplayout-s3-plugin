@@ -27,6 +27,7 @@ import hudson.tasks.Recorder;
 import hudson.util.CopyOnWriteList;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import hudson.util.Secret;
 import jenkins.model.Jenkins;
 import jenkins.tasks.SimpleBuildStep;
 import net.sf.json.JSONArray;
@@ -34,8 +35,10 @@ import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -508,17 +511,19 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         }
 
         @SuppressWarnings("unused")
-        public FormValidation doLoginCheck(final StaplerRequest req, StaplerResponse rsp) {
-            final String name = Util.fixNull(req.getParameter("name"));
-            final String accessKey = Util.fixNull(req.getParameter("accessKey"));
-            final String secretKey = Util.fixNull(req.getParameter("secretKey"));
-            final String useIAMCredential = Util.fixNull(req.getParameter("useRole"));
+        @RequirePOST
+        public FormValidation doLoginCheck(@QueryParameter String name, @QueryParameter String accessKey,
+                                           @QueryParameter Secret secretKey, @QueryParameter boolean useRole) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
 
-            final boolean couldBeValidated = !name.isEmpty() && !accessKey.isEmpty() && !secretKey.isEmpty();
-            final boolean useRole = Boolean.parseBoolean(useIAMCredential);
+            final String checkedName = Util.fixNull(name);
+            final String checkedAccessKey = Util.fixNull(accessKey);
+            final String checkedSecretKey = secretKey != null ? secretKey.getPlainText() : "";
+
+            final boolean couldBeValidated = !checkedName.isEmpty() && !checkedAccessKey.isEmpty() && !checkedSecretKey.isEmpty();
 
             if (!couldBeValidated) {
-                if (name.isEmpty()) {
+                if (checkedName.isEmpty()) {
                     return FormValidation.ok("Please, enter name");
                 }
 
@@ -526,18 +531,18 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                     return FormValidation.ok();
                 }
 
-                if (accessKey.isEmpty()) {
+                if (checkedAccessKey.isEmpty()) {
                     return FormValidation.ok("Please, enter accessKey");
                 }
 
-                if (secretKey.isEmpty()) {
+                if (checkedSecretKey.isEmpty()) {
                     return FormValidation.ok("Please, enter secretKey");
                 }
             }
 
             final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
             final AmazonS3Client client = ClientHelper.createClient(
-                    accessKey, secretKey, useRole, defaultRegion, Jenkins.get().proxy);
+                    checkedAccessKey, checkedSecretKey, useRole, defaultRegion, Jenkins.get().proxy);
 
             try {
                 client.listBuckets();
