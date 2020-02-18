@@ -1,7 +1,11 @@
 package hudson.plugins.s3;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.regions.Regions;
@@ -19,17 +23,29 @@ public class ClientHelper {
             "hudson.plugins.s3.DEFAULT_AMAZON_S3_REGION",
             com.amazonaws.services.s3.model.Region.US_Standard.toAWSRegion().getName());
 
-    public static AmazonS3Client createClient(String accessKey, String secretKey, boolean useRole, String region, ProxyConfiguration proxy)
+    public final static String DEFAULT_ROLE_SESSION_NAME = "jenkins-s3-plugin";
+
+    public static AmazonS3Client createClient(String accessKey, String secretKey, boolean useRole, String assumeRoleArn, String region, ProxyConfiguration proxy)
     {
         Region awsRegion = getRegionFromString(region);
 
         ClientConfiguration clientConfiguration = getClientConfiguration(proxy, awsRegion);
 
+        final AWSCredentialsProvider credentials;
         final AmazonS3Client client;
-        if (useRole) {
-            client = new AmazonS3Client(clientConfiguration);
+
+        if (assumeRoleArn.isEmpty()) {
+            if (useRole) {
+                client = new AmazonS3Client(clientConfiguration);
+            } else {
+                client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), clientConfiguration);
+            }
         } else {
-            client = new AmazonS3Client(new BasicAWSCredentials(accessKey, secretKey), clientConfiguration);
+            if (useRole) {
+                client = new AmazonS3Client(new STSAssumeRoleSessionCredentialsProvider(assumeRoleArn, DEFAULT_ROLE_SESSION_NAME), clientConfiguration);
+            } else {
+                client = new AmazonS3Client(new STSAssumeRoleSessionCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey), assumeRoleArn, DEFAULT_ROLE_SESSION_NAME), clientConfiguration);
+            }
         }
 
         client.setRegion(awsRegion);

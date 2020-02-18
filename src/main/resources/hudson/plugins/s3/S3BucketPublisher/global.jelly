@@ -19,7 +19,13 @@
           </f:entry>
           <f:validateButton
              title="${%Test Connection}" progress="${%Testing...}"
-             method="loginCheck" with="name,useRole,accessKey,secretKey" />
+             method="loginCheck" with="name,useRole,accessKey,secretKey" /> 
+          <f:entry title="Assume role ARN" help="/plugin/s3/help-assumeRoleArn.html"> 
+            <f:textbox name="assumeRoleArn" value="${profile.assumeRoleArn}" />
+          </f:entry>
+          <f:validateButton
+             title="${%Test ARN}" progress="${%Testing...}"
+             method="arnCheck" with="name,useRole,accessKey,secretKey,assumeRoleArn" />        
           <f:advanced>
             <f:entry title="Max upload retries">
                 <f:number name="s3.maxUploadRetries" value="${profile.maxUploadRetries}"/>

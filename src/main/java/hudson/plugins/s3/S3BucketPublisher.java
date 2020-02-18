@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 public final class S3BucketPublisher extends Recorder implements SimpleBuildStep {
 
@@ -290,7 +291,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 final Map<String, String> escapedMetadata = buildMetadata(envVars, entry);
 
                 final List<FingerprintRecord> records = Lists.newArrayList();
-                final List<FingerprintRecord> fingerprints = profile.upload(run, bucket, paths, filenames, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.gzipFiles);
+                final List<FingerprintRecord> fingerprints = profile.upload(run, bucket, paths, filenames, escapedMetadata, storageClass, selRegion, entry.uploadFromSlave, entry.managedArtifacts, entry.useServerSideEncryption, entry.cannedACL, entry.gzipFiles);
 
                 for (FingerprintRecord fingerprintRecord : fingerprints) {
                     records.add(fingerprintRecord);
@@ -524,7 +525,7 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
             if (!couldBeValidated) {
                 if (checkedName.isEmpty()) {
-                    return FormValidation.ok("Please, enter name");
+                    return FormValidation.ok("Please, enter a profile name");
                 }
 
                 if (useRole) {
@@ -542,7 +543,40 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
 
             final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
             final AmazonS3Client client = ClientHelper.createClient(
-                    checkedAccessKey, checkedSecretKey, useRole, defaultRegion, Jenkins.get().proxy);
+                    checkedAccessKey, checkedSecretKey, useRole, "", defaultRegion, Jenkins.get().proxy);
+
+            try {
+                client.listBuckets();
+            } catch (AmazonClientException e) {
+                LOGGER.log(Level.SEVERE, e.getMessage(), e);
+                return FormValidation.error("Can't connect to S3 service: " + e.getMessage());
+            }
+            return FormValidation.ok("Check passed!");
+        }
+
+        @SuppressWarnings("unused")
+        @RequirePOST
+        public FormValidation doArnCheck(@QueryParameter String name, @QueryParameter String accessKey,
+                                                   @QueryParameter Secret secretKey, @QueryParameter boolean useRole, 
+                                                   @QueryParameter String assumeRoleArn) {
+            
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+
+            final String checkedName = Util.fixNull(name);
+            final String checkedAccessKey = Util.fixNull(accessKey);
+            final String checkedSecretKey = secretKey != null ? secretKey.getPlainText() : "";
+            final String checkedAssumeRoleArn = Util.fixNull(assumeRoleArn);
+
+            final boolean couldBeValidated = !checkedAssumeRoleArn.isEmpty();
+
+            if (!Pattern.matches("(?i)arn:aws:iam::\\d+:role/.+", checkedAssumeRoleArn.toLowerCase())) {
+                return FormValidation.ok("Does not look like a ARN");
+            }
+
+            final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
+
+            final AmazonS3Client client = ClientHelper.createClient(
+                    checkedAccessKey, checkedSecretKey, useRole, checkedAssumeRoleArn, defaultRegion, Jenkins.get().proxy);
 
             try {
                 client.listBuckets();
