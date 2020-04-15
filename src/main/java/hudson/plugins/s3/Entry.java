@@ -3,11 +3,11 @@ package hudson.plugins.s3;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.services.s3.AmazonS3;
+import org.kohsuke.stapler.DataBoundConstructor;
 import hudson.Extension;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
 import hudson.util.ListBoxModel;
-import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.util.List;
 
@@ -30,7 +30,7 @@ public final class Entry implements Describable<Entry> {
     /**
      * options for x-amz-storage-class can be STANDARD, STANDARD_IA, or REDUCED_REDUNDANCY
      */
-    public static final String[] storageClasses = {"STANDARD", "STANDARD_IA", "REDUCED_REDUNDANCY"};
+    static final String[] storageClasses = {"STANDARD", "STANDARD_IA", "REDUCED_REDUNDANCY"};
     /**
      * what x-amz-storage-class is currently set
      */

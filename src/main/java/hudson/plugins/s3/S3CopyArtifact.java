@@ -24,6 +24,13 @@
 package hudson.plugins.s3;
 
 import com.google.common.collect.Maps;
+
+import org.acegisecurity.GrantedAuthority;
+import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
+import org.jenkinsci.Symbol;
+import org.kohsuke.stapler.AncestorInPath;
+import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 import hudson.DescriptorExtensionList;
 import hudson.EnvVars;
 import hudson.Extension;
@@ -35,11 +42,26 @@ import hudson.matrix.MatrixBuild;
 import hudson.matrix.MatrixProject;
 import hudson.maven.MavenModuleSet;
 import hudson.maven.MavenModuleSetBuild;
-import hudson.model.*;
+import hudson.model.AbstractBuild;
+import hudson.model.AbstractProject;
+import hudson.model.Build;
+import hudson.model.Descriptor;
+import hudson.model.EnvironmentContributingAction;
+import hudson.model.Fingerprint;
+import hudson.model.FingerprintMap;
+import hudson.model.Item;
+import hudson.model.Job;
+import hudson.model.Project;
+import hudson.model.Result;
+import hudson.model.Run;
+import hudson.model.TaskListener;
 import hudson.model.listeners.ItemListener;
 import hudson.model.listeners.RunListener;
-import hudson.plugins.copyartifact.*;
-import hudson.plugins.copyartifact.Messages;
+import hudson.plugins.copyartifact.BuildFilter;
+import hudson.plugins.copyartifact.BuildSelector;
+import hudson.plugins.copyartifact.ParametersBuildFilter;
+import hudson.plugins.copyartifact.StatusBuildSelector;
+import hudson.plugins.copyartifact.WorkspaceSelector;
 import hudson.security.AccessControlled;
 import hudson.security.SecurityRealm;
 import hudson.tasks.BuildStepDescriptor;
@@ -47,6 +69,8 @@ import hudson.tasks.Builder;
 import hudson.tasks.Fingerprinter.FingerprintAction;
 import hudson.util.DescribableList;
 import hudson.util.FormValidation;
+import jenkins.model.Jenkins;
+import jenkins.tasks.SimpleBuildStep;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -57,17 +81,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import jenkins.model.Jenkins;
-
-import jenkins.tasks.SimpleBuildStep;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
-import org.jenkinsci.Symbol;
-import org.kohsuke.stapler.AncestorInPath;
-import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.QueryParameter;
-
 import javax.annotation.Nonnull;
 
 /**
@@ -97,10 +110,10 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
             projectName = ""; // Ignore/clear bad value to avoid ugly 500 page
         this.projectName = projectName;
 
-        if (buildSelector == null) {
-            buildSelector = DEFAULT_BUILD_SELECTOR;
-        }
         this.selector = buildSelector;
+        if (this.selector == null) {
+            this.selector = DEFAULT_BUILD_SELECTOR;
+        }
 
         this.filter = Util.fixNull(filter).trim();
         this.excludeFilter = Util.fixNull(excludeFilter).trim();
@@ -265,12 +278,16 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         }
 
         for (Run r : new Run[]{src, dst}) {
-            if (r == null)
+            if (r == null) {
                 continue;
+            }
 
             final FingerprintAction fa = r.getAction(FingerprintAction.class);
-            if (fa != null) fa.add(fingerprints);
-            else            r.getActions().add(new FingerprintAction(r, fingerprints));
+            if (fa != null) {
+                fa.add(fingerprints);
+            } else  {
+                r.getActions().add(new FingerprintAction(r, fingerprints));
+            }
         }
 
         console.println(MessageFormat.format("Copied {0} {0,choice,0#artifacts|1#artifact|1<artifacts} from \"{1}\" build number {2} stored in S3", fingerprints.size(), HyperlinkNote.encodeTo('/'+ src.getParent().getUrl(), src.getParent().getFullDisplayName()),
@@ -286,7 +303,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         BuildFilter filter = new BuildFilter();
 
         JobResolver(String projectName) {
-            final Jenkins jenkins = Hudson.getActiveInstance();
+            final Jenkins jenkins = Jenkins.get();
             job = jenkins.getItemByFullName(projectName, Job.class);
             if (job == null) {
                 // Check for parameterized job with filter (see help file)
@@ -323,12 +340,20 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                         ? FormValidation.warning(Messages.CopyArtifact_MatrixProject())
                         : FormValidation.ok());
             }
-            else if (value.indexOf('$') >= 0)
+            else if (value.indexOf('$') >= 0) {
                 result = FormValidation.warning(Messages.CopyArtifact_ParameterizedName());
-            else
-                result = FormValidation.error(
-                    hudson.tasks.Messages.BuildTrigger_NoSuchProject(
-                        value, AbstractProject.findNearest(value).getName()));
+            }
+            else {
+                AbstractProject nearProject = AbstractProject.findNearest(value);
+                if (nearProject != null) {
+                    result = FormValidation.error(
+                            Messages.BuildTrigger_NoSuchProjectWithSuggestion(
+                                    value, nearProject.getName()));
+                } else {
+                    result = FormValidation.error(
+                            Messages.BuildTrigger_NoSuchProject(value));
+                }
+            }
             return result;
         }
 
@@ -342,7 +367,7 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
             return "S3 Copy Artifact";
         }
 
-        public DescriptorExtensionList<BuildSelector,Descriptor<BuildSelector>> getBuildSelectors() {
+        public DescriptorExtensionList<BuildSelector, Descriptor<BuildSelector>> getBuildSelectors() {
             final DescriptorExtensionList<BuildSelector, Descriptor<BuildSelector>> list = DescriptorExtensionList.createDescriptorList(Jenkins.getInstance(), BuildSelector.class);
             // remove from list some of the CopyArchiver build selector that we can't deal with
             list.remove(WorkspaceSelector.DESCRIPTOR);
@@ -356,14 +381,16 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         @Override
         public void onRenamed(Item item, String oldName, String newName) {
             for (AbstractProject<?,?> project
-                    : Hudson.getActiveInstance().getAllItems(AbstractProject.class)) {
+                    : Jenkins.get().getAllItems(AbstractProject.class)) {
                 for (S3CopyArtifact ca : getCopiers(project)) try {
-                    if (ca.getProjectName().equals(oldName))
+                    if (ca.getProjectName().equals(oldName)) {
                         ca.projectName = newName;
-                    else if (ca.getProjectName().startsWith(oldName + '/'))
+                    } else if (ca.getProjectName().startsWith(oldName + '/')) {
                         // Support rename for "MatrixJobName/AxisName=value" type of name
                         ca.projectName = newName + ca.projectName.substring(oldName.length());
-                    else continue;
+                    } else {
+                        continue;
+                    }
                     project.save();
                 } catch (IOException ex) {
                     Logger.getLogger(ListenerImpl.class.getName()).log(Level.WARNING,
@@ -380,8 +407,9 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
                             : (project instanceof MatrixProject ?
                             ((MatrixProject) project).getBuildersList() : null);
 
-            if (list == null)
+            if (list == null) {
                 return Collections.emptyList();
+            }
 
             return list.getAll(S3CopyArtifact.class);
         }
@@ -396,8 +424,9 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
 
         @Override
         public void onStarted(Build r, TaskListener listener) {
-            if (((Build<?,?>)r).getProject().getBuildersList().get(S3CopyArtifact.class) != null)
+            if (((Build<?,?>)r).getProject().getBuildersList().get(S3CopyArtifact.class) != null) {
                 r.addAction(new EnvAction());
+            }
         }
     }
     
@@ -408,7 +437,9 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
         private void add(String projectName, int buildNumber) {
             if (data==null) return;
             int i = projectName.indexOf('/'); // Omit any detail after a /
-            if (i > 0) projectName = projectName.substring(0, i);
+            if (i > 0) {
+                projectName = projectName.substring(0, i);
+            }
             data.put("COPYARTIFACT_BUILD_NUMBER_"
                        + projectName.toUpperCase().replaceAll("[^A-Z]+", "_"), // Only use letters and _
                      Integer.toString(buildNumber));
@@ -416,7 +447,9 @@ public class S3CopyArtifact extends Builder implements SimpleBuildStep {
 
         @Override
         public void buildEnvVars(AbstractBuild<?,?> build, EnvVars env) {
-            if (data!=null) env.putAll(data);
+            if (data!=null) {
+                env.putAll(data);
+            }
         }
 
         @Override
