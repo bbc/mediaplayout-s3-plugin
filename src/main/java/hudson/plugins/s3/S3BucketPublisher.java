@@ -511,14 +511,13 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             return pluginFailureResultConstraints.clone();
         }
 
-        @SuppressWarnings("unused")
-        public FormValidation doCheckAssumeRole(@QueryParameter String value) throws IOException, ServletException {
-            if(StringUtils.isEmpty(value)) {
+        private FormValidation doCheckAssumeRole(String assumeRole) {
+            if(StringUtils.isEmpty(assumeRole)) {
                 return FormValidation.ok();
             }
 
             final String defaultRegion = ClientHelper.DEFAULT_AMAZON_S3_REGION_NAME;
-            final AmazonS3 client = new ClientHelper.Builder(defaultRegion, Jenkins.getActiveInstance().proxy).build(value);
+            final AmazonS3 client = new ClientHelper.Builder(defaultRegion, Jenkins.get().proxy).build(assumeRole);
 
             try {
                 client.listBuckets();
@@ -526,17 +525,19 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 LOGGER.log(Level.SEVERE, e.getMessage(), e);
                 return FormValidation.error("Cannot list buckets from S3: " + e.getMessage());
             }
-            return FormValidation.ok("Successfully assumed role: " + value);
+            return FormValidation.ok("Successfully assumed role: " + assumeRole);
         }
 
         @SuppressWarnings("unused")
         @RequirePOST
         public FormValidation doLoginCheck(@QueryParameter String name, @QueryParameter String accessKey,
-                                           @QueryParameter Secret secretKey, @QueryParameter String assumeRole, @QueryParameter boolean useRole) {
+                                           @QueryParameter Secret secretKey, @QueryParameter String assumeRole,
+                                           @QueryParameter boolean useRole) {
             Jenkins.get().checkPermission(Jenkins.ADMINISTER);
 
             final String checkedName = Util.fixNull(name);
             final String checkedAccessKey = Util.fixNull(accessKey);
+            final String checkedAssumeRole = Util.fixNull(assumeRole);
             final String checkedSecretKey = secretKey != null ? secretKey.getPlainText() : "";
 
             final boolean couldBeValidated = !checkedName.isEmpty() && !checkedAccessKey.isEmpty() && !checkedSecretKey.isEmpty();
@@ -549,6 +550,11 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
                 if (useRole) {
                     return FormValidation.ok();
                 }
+
+                if (!checkedAssumeRole.isEmpty()) {
+                    return doCheckAssumeRole(checkedAssumeRole);
+                }
+
 
                 if (checkedAccessKey.isEmpty()) {
                     return FormValidation.ok("Please, enter accessKey");
