@@ -4,6 +4,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.amazonaws.event.ProgressListener;
 import com.amazonaws.event.ProgressEvent;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.FilePath;
 import hudson.ProxyConfiguration;
@@ -23,8 +24,8 @@ import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 public final class S3GzipCallable extends S3BaseUploadCallable implements MasterSlaveCallable<String> {
-    public S3GzipCallable(String accessKey, Secret secretKey, boolean useRole, Destination dest, Map<String, String> userMetadata, String storageClass, String selregion, boolean useServerSideEncryption, ProxyConfiguration proxy) {
-        super(accessKey, secretKey, useRole, dest, userMetadata, storageClass, selregion, useServerSideEncryption, proxy);
+    public S3GzipCallable(String accessKey, Secret secretKey, boolean useRole, String assumeRole, Destination dest, Map<String, String> userMetadata, String storageClass, String selregion, boolean useServerSideEncryption, String cannedACL, ProxyConfiguration proxy) {
+        super(accessKey, secretKey, useRole, assumeRole, dest, userMetadata, storageClass, selregion, useServerSideEncryption, cannedACL, proxy);
     }
 
     // Return a File containing the gzipped contents of the input file.
@@ -72,11 +73,12 @@ public final class S3GzipCallable extends S3BaseUploadCallable implements Master
         Upload upload = null;
 
         try (final InputStream gzippedStream = new FileInputStream(localFile)) {
+            final CannedAccessControlList cannedAcl = getCannedAcl();
             final ObjectMetadata metadata = buildMetadata(file);
             metadata.setContentEncoding("gzip");
             metadata.setContentLength(localFile.length());
 
-            upload = Uploads.getInstance().startUploading(getTransferManager(), file, gzippedStream, getDest().bucketName, getDest().objectName, metadata);
+            upload = Uploads.getInstance().startUploading(getTransferManager(), file, gzippedStream, getDest().bucketName, getDest().objectName, metadata, cannedAcl);
 
             String md5 = MD5.generateFromFile(localFile);
 

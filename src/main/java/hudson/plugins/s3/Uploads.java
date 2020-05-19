@@ -5,6 +5,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.Upload;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
 import hudson.FilePath;
 
 import java.io.IOException;
@@ -21,8 +22,12 @@ public final class Uploads {
     private final transient HashMap<FilePath, Upload> startedUploads = new HashMap<>();
     private final transient HashMap<FilePath, InputStream> openedStreams = new HashMap<>();
 
-    public Upload startUploading(TransferManager manager, FilePath file, InputStream inputsStream, String bucketName, String objectName, ObjectMetadata metadata) throws AmazonServiceException {
+    public Upload startUploading(TransferManager manager, FilePath file, InputStream inputsStream, String bucketName, String objectName, ObjectMetadata metadata, CannedAccessControlList cannedAcl) throws AmazonServiceException {
         final PutObjectRequest request = new PutObjectRequest(bucketName, objectName, inputsStream, metadata);
+
+        if (!cannedAcl.equals(CannedAccessControlList.Private)) {
+            request.setCannedAcl(cannedAcl);
+        }
 
         // Set the buffer size (ReadLimit) equal to the multipart upload size,
         // allowing us to resend data if the connection breaks.
