@@ -15,6 +15,7 @@ import hudson.Util;
 import hudson.model.AbstractProject;
 import hudson.model.Action;
 import hudson.model.Fingerprint;
+import hudson.model.Item;
 import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
@@ -34,10 +35,10 @@ import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.Symbol;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import javax.annotation.Nonnull;
@@ -466,8 +467,16 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
         }
 
         @SuppressWarnings("unused")
-        public ListBoxModel doFillProfileNameItems() {
+        public ListBoxModel doFillProfileNameItems(@AncestorInPath Item item) {
             final ListBoxModel model = new ListBoxModel();
+            if (item != null && !item.hasPermission(Item.CONFIGURE)) {
+                return model;
+            }
+            if (item == null && !Jenkins.get().hasPermission(Item.CREATE)) {
+                // accessing from $JENKINS_URL/pipeline-syntax
+                return model;
+            }
+
             for (S3Profile profile : profiles) {
                 model.add(profile.getName(), profile.getName());
             }
