@@ -3,6 +3,7 @@ package hudson.plugins.s3;
 import java.io.File;
 import java.io.IOException;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -11,6 +12,7 @@ import javax.servlet.ServletException;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.ResponseHeaderOverrides;
+import hudson.Functions;
 import jenkins.model.RunAction2;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
@@ -39,7 +41,7 @@ public class S3ArtifactsAction implements RunAction2 {
     }
 
     public String getIconFileName() {
-        return "fingerprint.png";
+        return hasAccess() ? "fingerprint.png" : null;
     }
 
     public String getDisplayName() {
@@ -47,7 +49,11 @@ public class S3ArtifactsAction implements RunAction2 {
     }
 
     public String getUrlName() {
-        return "s3";
+        return hasAccess() ? "s3" : null;
+    }
+
+    private boolean hasAccess () {
+        return !Functions.isArtifactsPermissionEnabled() || build.getParent().hasPermission(Run.ARTIFACTS);
     }
 
     @Override
@@ -63,10 +69,16 @@ public class S3ArtifactsAction implements RunAction2 {
 
     @Exported
     public List<FingerprintRecord> getArtifacts() {
+        if (!hasAccess()) {
+            return Collections.emptyList();
+        }
         return artifacts;
     }
 
     public void doDownload(final StaplerRequest request, final StaplerResponse response) throws IOException, ServletException {
+        if (Functions.isArtifactsPermissionEnabled()) {
+            build.getParent().checkPermission(Run.ARTIFACTS);
+        }
         final String restOfPath = request.getRestOfPath();
         if (restOfPath == null) {
             return;
