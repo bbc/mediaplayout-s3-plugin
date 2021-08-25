@@ -3,11 +3,12 @@ package hudson.plugins.s3;
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.RegionUtils;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import org.kohsuke.stapler.DataBoundConstructor;
 import hudson.Extension;
 import hudson.model.Describable;
 import hudson.model.Descriptor;
 import hudson.util.ListBoxModel;
-import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.util.List;
 
@@ -65,6 +66,11 @@ public final class Entry implements Describable<Entry> {
     public boolean useServerSideEncryption;
 
     /**
+     * Use this canned ACL when uploading
+     */
+    public String cannedACL;
+
+    /**
      * Flatten directories
      */
     public boolean flatten;
@@ -93,7 +99,7 @@ public final class Entry implements Describable<Entry> {
     @DataBoundConstructor
     public Entry(String bucket, String sourceFile, String excludedFile, String storageClass, String selectedRegion,
                  boolean noUploadOnFailure, boolean uploadFromSlave, boolean managedArtifacts,
-                 boolean useServerSideEncryption, boolean flatten, boolean gzipFiles, boolean keepForever,
+                 boolean useServerSideEncryption, String cannedACL, boolean flatten, boolean gzipFiles, boolean keepForever,
                  boolean showDirectlyInBrowser, List<MetadataPair> userMetadata) {
         this.bucket = bucket;
         this.sourceFile = sourceFile;
@@ -104,6 +110,7 @@ public final class Entry implements Describable<Entry> {
         this.uploadFromSlave = uploadFromSlave;
         this.managedArtifacts = managedArtifacts;
         this.useServerSideEncryption = useServerSideEncryption;
+        this.cannedACL = cannedACL;
         this.flatten = flatten;
         this.gzipFiles = gzipFiles;
         this.keepForever = keepForever;
@@ -130,6 +137,14 @@ public final class Entry implements Describable<Entry> {
             final ListBoxModel model = new ListBoxModel();
             for (String s : storageClasses) {
                 model.add(s, s);
+            }
+            return model;
+        }
+
+        public ListBoxModel doFillCannedACLItems() {
+            final ListBoxModel model = new ListBoxModel();
+            for (CannedAccessControlList cannedAccessControlList : CannedAccessControlList.values()) {
+                model.add(cannedAccessControlList.toString(), cannedAccessControlList.name());
             }
             return model;
         }
