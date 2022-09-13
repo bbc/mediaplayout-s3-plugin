@@ -134,6 +134,10 @@ public final class S3BucketPublisher extends Recorder implements SimpleBuildStep
             consoleLogLevelString = consoleLogLevel.getName();
         }
 
+        if (consoleLogLevel == null && consoleLogLevelString != null) {
+            consoleLogLevel = parseLevel(consoleLogLevelString);
+        }
+
         if(consoleLogLevel==null)
             consoleLogLevel = Level.INFO;
 
