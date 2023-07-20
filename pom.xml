@@ -3,18 +3,20 @@
     <parent>
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
-        <version>3.54</version>
+        <version>4.48</version>
     </parent>
 
     <artifactId>s3</artifactId>
     <packaging>hpi</packaging>
-    <version>0.11.6-SNAPSHOT+1.0.0-SMP</version>
+    <version>${revision}${changelist}</version>
     <name>Jenkins S3 publisher plugin</name>
-    <url>https://wiki.jenkins.io/display/JENKINS/S3+Plugin</url>
+    <url>https://github.com/jenkinsci/s3-plugin</url>
 
     <properties>
-        <java.level>8</java.level>
-        <jenkins.version>2.138.4</jenkins.version>
+        <revision>0.12.3</revision>
+        <changelist>-SNAPSHOT</changelist>
+        <gitHubRepo>jenkinsci/s3-plugin</gitHubRepo>
+        <jenkins.version>2.289.3</jenkins.version>
     </properties>
 
     <developers>
@@ -49,17 +51,16 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/jenkinsci/s3-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:jenkinsci/s3-plugin.git</developerConnection>
-        <url>https://github.com/jenkinsci/s3-plugin</url>
-        <tag>HEAD</tag>
+        <connection>scm:git:https://github.com/${gitHubRepo}.git</connection>
+        <developerConnection>scm:git:git@github.com:${gitHubRepo}.git</developerConnection>
+        <url>https://github.com/${gitHubRepo}</url>
+        <tag>${scmTag}</tag>
     </scm>
 
     <dependencies>
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>1.10.19</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>
@@ -69,24 +70,30 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>org.jenkins-ci.plugins</groupId>
-            <artifactId>aws-java-sdk</artifactId>
-            <version>1.11.687</version>
+            <groupId>org.jenkins-ci.plugins.aws-java-sdk</groupId>
+            <artifactId>aws-java-sdk-minimal</artifactId>
+            <version>1.12.287-357.vf82d85a_6eefd</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.dataformat</groupId>
+                    <artifactId>jackson-dataformat-cbor</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>apache-httpcomponents-client-4-api</artifactId>
-            <version>4.5.10-2.0</version>
         </dependency>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>copyartifact</artifactId>
-            <version>1.43</version>
+            <version>1.46.2</version>
         </dependency>
         <dependency>
             <groupId>org.jenkins-ci.main</groupId>
             <artifactId>maven-plugin</artifactId>
-            <version>3.4</version>
+            <version>3.16</version>
+            <optional>true</optional>
             <exclusions>
                 <exclusion>
                     <groupId>commons-io</groupId>
@@ -97,9 +104,46 @@
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>structs</artifactId>
-            <version>1.20</version>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.17.5</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.commons</groupId>
+                    <artifactId>commons-compress</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.jenkins.tools.bom</groupId>
+                <artifactId>bom-2.289.x</artifactId>
+                <version>1500.ve4d05cd32975</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>commons-net</groupId>
+                <artifactId>commons-net</artifactId>
+                <version>3.8.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jenkins-ci</groupId>
+                <artifactId>symbol-annotation</artifactId>
+                <version>1.23</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <repositories>
         <repository>
